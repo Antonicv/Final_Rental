@@ -186,14 +186,21 @@ export default function BookingsView() {
 
               // Calcular el precio total usando Date nativo
               let totalPrice = 'N/A';
+              let duration = 0;
               if (car && booking.startDate && booking.endDate) {
                 try {
                   const start = new Date(booking.startDate);
                   const end = new Date(booking.endDate);
                   // Calcular la diferencia en milisegundos y luego convertir a días
                   const diffTime = Math.abs(end.getTime() - start.getTime());
-                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); // Redondea hacia arriba para incluir el día de fin
-                  const duration = diffDays + 1; // +1 para incluir el día de inicio y fin
+                  duration = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); // Redondea hacia arriba para incluir el día de fin
+                  // Si la duración es 0 (mismo día), se considera 1 día de reserva
+                  if (duration === 0 && booking.startDate === booking.endDate) {
+                    duration = 1;
+                  } else if (duration > 0) {
+                    duration = duration + 1; // Sumar 1 para incluir el día de inicio
+                  }
+
 
                   if (duration > 0) {
                     const calculatedPrice = car.price * duration;
@@ -220,79 +227,105 @@ export default function BookingsView() {
 
 
               return (
-                <li key={booking.bookingId} className="bg-white shadow-md rounded-lg p-4 mb-4 border border-gray-200 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left">
-                  {car && isCarWithMakeAndModel(car) ? (
-                    <img
-                      src={getCarThumbnailImageUrl(car)} // Ya no se pasa isVintageMode aquí
-                      alt={`${car.make} ${car.model}`}
-                      style={{ width: '150px', height: '100px', objectFit: 'cover', borderRadius: '8px', marginBottom: '1rem', sm: { marginRight: '1rem', marginBottom: '0' } }}
-                      onError={(e) => {
-                        console.error("ERROR (BookingsView): Failed to load car thumbnail image:", e.currentTarget.src, e);
-                        (e.target as HTMLImageElement).src = 'https://placehold.co/150x100/E0E0E0/333333?text=No+Image';
-                      }}
-                    />
-                  ) : (
-                    <div style={{ width: '150px', height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f0f0', borderRadius: '8px', marginBottom: '1rem', sm: { marginRight: '1rem', marginBottom: '0' } }}>
-                      <p style={{ color: '#888', fontSize: '0.8rem' }}>Coche no encontrado</p>
+                <li key={booking.bookingId} className="bg-white shadow-md rounded-lg p-4 mb-4 border border-gray-200 flex flex-col items-center sm:items-start text-center sm:text-left">
+                  <div className="flex flex-col sm:flex-row w-full gap-4"> {/* Contenedor para las 3 secciones */}
+                    {/* Sección de Imagen (1/3) */}
+                    <div className="flex-1 w-full sm:w-1/3 flex items-center justify-center p-2">
+                      {car && isCarWithMakeAndModel(car) ? (
+                        <img
+                          src={getCarThumbnailImageUrl(car)}
+                          alt={`${car.make} ${car.model}`}
+                          style={{ width: '100%', height: '300px', objectFit: 'cover', borderRadius: '8px' }}
+                          onError={(e) => {
+                            console.error("ERROR (BookingsView): Failed to load car thumbnail image:", e.currentTarget.src, e);
+                            (e.target as HTMLImageElement).src = 'https://placehold.co/150x100/E0E0E0/333333?text=No+Image';
+                          }}
+                        />
+                      ) : (
+                        <div style={{ width: '100%', height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f0f0', borderRadius: '8px' }}>
+                          <p style={{ color: '#888', fontSize: '0.8rem' }}>Coche no encontrado</p>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  <div className="flex-grow">
-                    <p className="text-lg font-semibold text-gray-800">
-                      <span className="text-blue-600">Reserva ID:</span> {booking.bookingId || 'N/A'}
-                    </p>
-                    {car ? (
+
+                    {/* Sección de Booking y Coche (1/3) */}
+                    <div className="flex-1 w-full sm:w-1/3 p-2 border-b sm:border-b-0 sm:border-r border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Detalles de la Reserva</h3>
                       <p className="text-gray-700">
-                        <span className="font-medium">Coche:</span> {car.make || 'N/A'} {car.model || 'N/A'} ({car.year || 'N/A'}) - {car.color || 'N/A'}
-                        <br />
-                        <span className="font-medium">Precio por día:</span>{' '}
-                        <strong>
-                          {isVintageMode && isCurrentCarVintage // La lógica de precio sigue dependiendo del modo vintage
-                            ? `${(car.price * EUR_TO_PTS_RATE).toLocaleString(undefined, { maximumFractionDigits: 0 })} Pts`
-                            : `${car.price || 'N/A'} €`}
-                        </strong>
+                        <span className="font-medium">Usuario:</span> {booking.userId || 'N/A'}
                       </p>
-                    ) : (
-                      <p className="text-gray-700"><span className="font-medium">Coche:</span> Detalles no disponibles</p>
-                    )}
-                    <p className="text-gray-700">
-                      <span className="font-medium">Fechas:</span> {booking.startDate || 'N/A'} a {booking.endDate || 'N/A'}
-                    </p>
-                    <p className="text-gray-700">
-                      <span className="font-medium">Usuario:</span> {booking.userId || 'N/A'}
-                    </p>
-                    {delegation ? (
-                      <p className="text-gray-700">
-                        <span className="font-medium">Delegación:</span> {delegation.name || 'N/A'} ({delegation.city || 'N/A'})
-                        <br />
-                        <span className="font-medium">Dirección:</span> {delegation.adress || 'N/A'}
-                        <br />
-                        <span className="font-medium">Gestor:</span> {delegation.manager || 'N/A'}
-                        <br />
-                        <span className="font-medium">Teléfono:</span> {delegation.telf || 'N/A'}
-                        {/* Puedes añadir lat, long, carQuantity aquí si lo deseas */}
-                        {/* <br />
-                        <span className="font-medium">Lat/Long:</span> {delegation.lat || 'N/A'}/{delegation.longVal || 'N/A'}
-                        <br />
-                        <span className="font-medium">Coches en Delegación:</span> {delegation.carQuantity || 'N/A'} */}
+                      {car ? (
+                        <>
+                          <p className="text-gray-700">
+                            <span className="font-medium">Coche:</span> {car.make || 'N/A'} {car.model || 'N/A'} ({car.year || 'N/A'}) - {car.color || 'N/A'}
+                          </p>
+                          <p className="text-gray-700 text-sm">
+                            <span className="font-medium">Fecha de Reserva:</span> {booking.bookingDate || 'N/A'}
+                          </p>
+                          <p className="text-gray-700">
+                            <span className="font-medium">Fechas:</span> {booking.startDate || 'N/A'} a {booking.endDate || 'N/A'}
+                          </p>
+                          <p className="text-gray-700">
+                            <span className="font-medium">Precio por día:</span>{' '}
+                            <strong>
+                              {isVintageMode && isCurrentCarVintage
+                                ? `${(car.price * EUR_TO_PTS_RATE).toLocaleString(undefined, { maximumFractionDigits: 0 })} Pts`
+                                : `${car.price || 'N/A'} €`}
+                            </strong>
+                          </p>
+                          <p className="text-gray-700">
+                            <span className="font-medium">Número de días reservados:</span> {duration > 0 ? duration : 'N/A'}
+                          </p>
+                          <p className="text-lg font-bold text-gray-900 mt-2">
+                              <span className="text-purple-700">Precio Total:</span> {totalPrice}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-gray-700"><span className="font-medium">Coche:</span> Detalles no disponibles</p>
+                      )}
+                      <p className="text-gray-700 text-sm">
+                        <span className="text-blue-600">Reserva ID:</span> {booking.bookingId || 'N/A'}
                       </p>
-                    ) : (
-                      <p className="text-gray-700"><span className="font-medium">Delegación:</span> Detalles no disponibles</p>
-                    )}
-                    <p className="text-gray-700 text-sm">
-                      <span className="font-medium">Fecha de Reserva:</span> {booking.bookingDate || 'N/A'}
-                    </p>
-                    {/* NUEVO: Mostrar el precio total */}
-                    <p className="text-lg font-bold text-gray-900 mt-2">
-                        <span className="text-purple-700">Precio Total:</span> {totalPrice}
-                    </p>
-                    <div className="flex gap-2 mt-2 justify-center sm:justify-start">
-                      <Button theme="error small" onClick={() => handleDeleteBooking(booking)}>
-                        Borrar
-                      </Button>
-                      <Button theme="tertiary small" onClick={() => handleModifyBooking(booking)}>
-                        Modificar
-                      </Button>
                     </div>
+
+                    {/* Sección de Delegación (1/3) */}
+                    <div className="flex-1 w-full sm:w-1/3 p-2">
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Detalles de la Delegación</h3>
+                      {delegation ? (
+                        <>
+                          <p className="text-gray-700">
+                            <span className="font-medium">Delegación:</span> {delegation.name || 'N/A'} ({delegation.city || 'N/A'})
+                          </p>
+                          <p className="text-gray-700">
+                            <span className="font-medium">Dirección:</span> {delegation.adress || 'N/A'}
+                          </p>
+                          <p className="text-gray-700">
+                            <span className="font-medium">Gestor:</span> {delegation.manager || 'N/A'}
+                          </p>
+                          <p className="text-gray-700">
+                            <span className="font-medium">Teléfono:</span> {delegation.telf || 'N/A'}
+                          </p>
+                          {/* Puedes añadir lat, long, carQuantity aquí si lo deseas */}
+                          {/* <p className="text-gray-700">
+                            <span className="font-medium">Lat/Long:</span> {delegation.lat || 'N/A'}/{delegation.longVal || 'N/A'}
+                          </p>
+                          <p className="text-gray-700">
+                            <span className="font-medium">Coches en Delegación:</span> {delegation.carQuantity || 'N/A'}
+                          </p> */}
+                        </>
+                      ) : (
+                        <p className="text-gray-700"><span className="font-medium">Delegación:</span> Detalles no disponibles</p>
+                      )}
+                    </div>
+                  </div>
+                  {/* Botones debajo de las tres secciones */}
+                  <div className="flex gap-2 mt-4 justify-center sm:justify-start w-full">
+                    <Button theme="error small" onClick={() => handleDeleteBooking(booking)}>
+                      Borrar
+                    </Button>
+                    <Button theme="tertiary small" onClick={() => handleModifyBooking(booking)}>
+                      Modificar
+                    </Button>
                   </div>
                 </li>
               );
