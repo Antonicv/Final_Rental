@@ -120,6 +120,9 @@ export default function ListCars() {
     return <div>No cars available.</div>;
   }
 
+  // Definir la tasa de conversión de Euro a Peseta
+  const EUR_TO_PTS_RATE = 166.386;
+
   return (
     <div
       style={{
@@ -142,65 +145,75 @@ export default function ListCars() {
             return car.year >= 2000; // Solo coches "modernos" (años 2000 en adelante)
           }
         })
-        .map(car => (
-          <div
-            key={`${car.delegationId}-${car.operation}`} // Clave única para cada tarjeta de coche
-            style={{
-              border: '1px solid #ddd',
-              borderRadius: '12px',
-              width: '320px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              padding: '1.5rem',
-              background: '#fff'
-            }}
-          >
-            {/* Lógica condicional para la URL de la imagen (API externa o local) */}
-            <img
-              src={isVintageMode
-                ? `/images/${sanitizeFilenamePart(car.make)}_${sanitizeFilenamePart(car.model)}.webp` // Ruta local para coches vintage
-                : `https://cdn.imagin.studio/getimage?customer=img&make=${encodeURIComponent(car.make)}&modelFamily=${encodeURIComponent(car.model)}&paintId=${encodeURIComponent(car.color || '')}&zoomType=fullscreen` // API externa para coches modernos
-              }
-              alt={`${car.make} ${car.model}`} // Texto alternativo para la imagen
+        .map(car => {
+          // Determina si el coche actual es vintage (para la visualización del precio)
+          const isCurrentCarVintage = car.year < 2000;
+
+          return (
+            <div
+              key={`${car.delegationId}-${car.operation}`} // Clave única para cada tarjeta de coche
               style={{
-                width: '100%',
-                height: '180px',
-                objectFit: 'cover',
-                borderRadius: '8px',
-                marginBottom: '1rem'
+                border: '1px solid #ddd',
+                borderRadius: '12px',
+                width: '320px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                padding: '1.5rem',
+                background: '#fff'
               }}
-              onError={(e) => {
-                // Fallback para imágenes no encontradas (muestra un placeholder)
-                (e.target as HTMLImageElement).src = 'https://placehold.co/300x180?text=Car+Not+Found';
-              }}
-            />
-            <h3>
-              {car.make} {car.model}
-            </h3>
-            <div style={{ marginBottom: '0.5rem', color: '#555' }}>
-              Year: <strong>{car.year}</strong>
-            </div>
-            <div style={{ marginBottom: '0.5rem', color: '#555' }}>
-              Color: <strong>{car.color}</strong>
-            </div>
-            <div style={{ marginBottom: '0.5rem', color: '#555' }}>
-              Price: <strong>{car.price} €</strong>
-            </div>
-            <div style={{ marginBottom: '1rem', color: car.rented ? '#d33' : '#090' }}>
-              {car.rented ? 'Rented' : 'Available'}
-            </div>
-            <Button
-              theme="primary"
-              disabled={car.rented}
-              onClick={() => handleBook(car)}
-              style={{ width: '100%' }}
             >
-              BOOK
-            </Button>
-          </div>
-        ))
+              {/* Lógica condicional para la URL de la imagen (API externa o local) */}
+              <img
+                src={isVintageMode && isCurrentCarVintage // Solo usa imagen local si el modo vintage está activo Y el coche es vintage
+                  ? `/images/${sanitizeFilenamePart(car.make)}_${sanitizeFilenamePart(car.model)}.webp` // Ruta local para coches vintage
+                  : `https://cdn.imagin.studio/getimage?customer=img&make=${encodeURIComponent(car.make)}&modelFamily=${encodeURIComponent(car.model)}&paintId=${encodeURIComponent(car.color || '')}&zoomType=fullscreen` // API externa para coches modernos
+                }
+                alt={`${car.make} ${car.model}`} // Texto alternativo para la imagen
+                style={{
+                  width: '100%',
+                  height: '180px',
+                  objectFit: 'cover',
+                  borderRadius: '8px',
+                  marginBottom: '1rem'
+                }}
+                onError={(e) => {
+                  // Fallback para imágenes no encontradas (muestra un placeholder)
+                  (e.target as HTMLImageElement).src = 'https://placehold.co/300x180?text=Car+Not+Found';
+                }}
+              />
+              <h3>
+                {car.make} {car.model}
+              </h3>
+              <div style={{ marginBottom: '0.5rem', color: '#555' }}>
+                Year: <strong>{car.year}</strong>
+              </div>
+              <div style={{ marginBottom: '0.5rem', color: '#555' }}>
+                Color: <strong>{car.color}</strong>
+              </div>
+              <div style={{ marginBottom: '0.5rem', color: '#555' }}>
+                Price: <strong>
+                  {isVintageMode && isCurrentCarVintage // Si el modo vintage está activo Y el coche es vintage
+                    ? `${(car.price * EUR_TO_PTS_RATE).toLocaleString(undefined, { maximumFractionDigits: 0 })} Pts` // Muestra en Pesetas sin decimales
+                    : `${car.price} €` // Muestra en Euros
+                  }
+                </strong>
+              </div>
+              <div style={{ marginBottom: '1rem', color: car.rented ? '#d33' : '#090' }}>
+                {car.rented ? 'Rented' : 'Available'}
+              </div>
+              <Button
+                theme="primary"
+                disabled={car.rented}
+                onClick={() => handleBook(car)}
+                style={{ width: '100%' }}
+              >
+                BOOK
+              </Button>
+            </div>
+          );
+        })
       }
     </div>
   );
