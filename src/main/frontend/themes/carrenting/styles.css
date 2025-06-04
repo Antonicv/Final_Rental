@@ -1,0 +1,228 @@
+html {
+  --lumo-font-family: 'Inter', sans-serif;
+  /* Paleta base del modo claro (por defecto) */
+  --lumo-base-color: #f2ead4;
+  --lumo-body-text-color: #4a4a4a;
+  --lumo-header-text-color: #333333;
+  --lumo-primary-color: #32536a;
+  --lumo-primary-text-color: #ffffff;
+  --lumo-accent-color: #bfae82;
+  --lumo-accent-hover-color: #a8925c;
+  --lumo-contrast-color: rgba(0, 0, 0, 0.1);
+  --lumo-contrast-50pct: var(--lumo-primary-color);
+  --lumo-contrast-60pct: var(--lumo-primary-color);
+  --lumo-primary-text-color: var(--lumo-primary-color);
+}
+
+body {
+  font-family: var(--lumo-font-family);
+  font-size: 16px;
+  margin: 0;
+  padding: 0;
+  background-color: var(--lumo-base-color);
+  color: var(--lumo-body-text-color);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: bold;
+  line-height: 1.2;
+  color: var(--lumo-primary-color);
+}
+
+a {
+  color: var(--lumo-primary-color);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+  color: #244256;
+}
+
+.logo-container {
+  width: 100%;
+  max-width: 500px;
+  height: auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0 auto;
+}
+
+.logo-img {
+  width: 100%;
+  max-width: 350px;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+html[theme~="dark"] .logo-img {
+  /*max-width: 500px;*/
+}
+
+/* Navbar custom styles */
+.navbar-custom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  background: var(--lumo-base-color);
+  border-bottom: 1px solid var(--lumo-contrast-color);
+}
+
+.navbar-title {
+  flex: 1;
+  text-align: center;
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: var(--lumo-primary-color);
+}
+
+vaadin-drawer-toggle {
+    color: var(--lumo-primary-color);
+    background: transparent;
+}
+vaadin-drawer-toggle:hover {
+    color: var(--lumo-accent-hover-color);
+}
+
+.theme-toggle-btn {
+  margin-left: 1rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--lumo-border-radius-m, 0.5rem);
+  border: none;
+  background: var(--lumo-accent-color);
+  color: var(--lumo-body-text-color);
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.2s, color 0.2s;
+}
+.theme-toggle-btn:hover {
+  background: var(--lumo-accent-hover-color);
+  color: var(--lumo-primary-text-color);
+}
+
+.vintage-toggle-btn {
+  margin-left: 1rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--lumo-border-radius-m, 0.5rem);
+  border: none;
+  background: var(--lumo-accent-color);
+  color: var(--lumo-body-text-color);
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.2s, color 0.2s;
+}
+.vintage-toggle-btn:hover {
+  background: var(--lumo-accent-hover-color);
+}
+
+/* ------------------ MODO OSCURO ------------------ */
+html[theme~="dark"] {
+  --lumo-base-color: #000000;
+  --lumo-body-text-color: #e0e0e0;
+  --lumo-header-text-color: #f0f0f0;
+  --lumo-primary-color: #dcc08a;
+  --lumo-primary-text-color: #1a1a1a;
+  --lumo-accent-color: #bfae82;
+  --lumo-accent-hover-color: #a8925c;
+  --lumo-contrast-color: rgba(255, 255, 255, 0.1);
+  --lumo-contrast-50pct: var(--lumo-primary-color);
+  --lumo-contrast-60pct: var(--lumo-primary-color);
+  --lumo-primary-text-color: var(--lumo-primary-color);
+  background-color: var(--lumo-base-color);
+  color: var(--lumo-body-text-color);
+}
+
+html[theme~="dark"] body {
+  background-color: #000000 !important;
+  color: var(--lumo-body-text-color);
+}
+html[theme~="dark"] .navbar-custom {
+  background-color: #000000 !important;
+}
+html[theme~="dark"] vaadin-drawer-layout::part(drawer) {
+    background-color: #000000 !important;
+}
+html[theme~="dark"] .flex.flex-col.justify-between.h-full.p-m {
+    background-color: #000000 !important;
+}
+html[theme~="dark"] h1 {
+    color: #bfae82;
+}
+html[theme~="dark"] h2,
+html[theme~="dark"] h3,
+html[theme~="dark"] h4,
+html[theme~="dark"] h5,
+html[theme~="dark"] h6 {
+  color: #bfae82;
+}
+html[theme~="dark"] a {
+  color: var(--lumo-primary-color);
+}
+html[theme~="dark"] a:hover {
+  color: var(--lumo-accent-hover-color);
+}
+html[theme~="dark"] .navbar-title {
+    color: #bfae82;
+}
+html[theme~="dark"] span.font-semibold.text-l {
+    color: #bfae82;
+}
+html[theme~="dark"] vaadin-side-nav-item {
+    color: #bfae82;
+}
+html[theme~="dark"] vaadin-drawer-toggle {
+    color: #bfae82;
+}
+html[theme~="dark"] vaadin-drawer-toggle:hover {
+    color: var(--lumo-accent-hover-color);
+}
+
+/* ------------------ MODO VINTAGE ------------------ */
+
+/* Aplica el filtro vintage SOLO cuando la clase está en <html> */
+html.vintage-mode {
+  filter: grayscale(0.65) sepia(0.8) contrast(1.25) brightness(0.95) hue-rotate(-10deg) !important;
+}
+
+/* Si por alguna razón la clase se aplica en <body>, también lo soportamos */
+body.vintage-mode {
+  filter: grayscale(0.65) sepia(0.8) contrast(1.25) brightness(0.95) hue-rotate(-10deg) !important;
+}
+
+/* Flicker CRT sutil */
+html.vintage-mode body {
+  animation: flicker 0.18s infinite alternate;
+}
+@keyframes flicker {
+  0% { filter: brightness(1); }
+  100% { filter: brightness(0.96); }
+}
+
+/* --------- ESTÁTICA DE TV --------- */
+.tv-static {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.16;
+  mix-blend-mode: lighten;
+  background:
+    repeating-linear-gradient(0deg, #fff 0px, #ccc 1px, #222 2px, #fff 3px),
+    repeating-linear-gradient(90deg, #fff 0px, #bbb 1px, #333 2px, #fff 3px);
+  animation: tv-static 0.09s steps(2) infinite;
+  display: none;
+}
+@keyframes tv-static {
+  0% { background-position: 0 0, 0 0; }
+  100% { background-position: 0 100px, 100px 0; }
+}
+html.vintage-mode .tv-static {
+  display: block;
+}
