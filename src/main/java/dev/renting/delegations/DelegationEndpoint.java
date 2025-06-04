@@ -90,14 +90,16 @@ public class DelegationEndpoint {
 
     /**
      * Searches for available cars by delegation ID and date range, querying real bookings.
+     * Also filters cars based on vintage mode.
      *
      * @param delegationId The ID of the delegation.
      * @param startDateStr The start date of the rental period (YYYY-MM-DD format).
      * @param endDateStr The end date of the rental period (YYYY-MM-DD format).
+     * @param isVintageMode True if vintage cars should be shown, false for modern cars.
      * @return A list of available cars.
      */
-    public List<Car> getAvailableCars(String delegationId, String startDateStr, String endDateStr) {
-        System.out.println("DEBUG: getAvailableCars called for delegationId: " + delegationId + ", start: " + startDateStr + ", end: " + endDateStr);
+    public List<Car> getAvailableCars(String delegationId, String startDateStr, String endDateStr, boolean isVintageMode) {
+        System.out.println("DEBUG: getAvailableCars called for delegationId: " + delegationId + ", start: " + startDateStr + ", end: " + endDateStr + ", vintageMode: " + isVintageMode);
 
         LocalDate queryStartDate;
         LocalDate queryEndDate;
@@ -111,18 +113,29 @@ public class DelegationEndpoint {
             throw new IllegalArgumentException("Invalid date format. ExpectedWHEREAS-MM-DD.", e);
         }
 
-
         // 1. Get all cars for that delegation
-        // No longer need to find delegation by city, as delegationId is passed directly
         List<Car> carsInDelegation = delegationRepository.listAllCars().stream()
                 .filter(car -> car.getDelegationId() != null && car.getDelegationId().equals(delegationId))
                 .collect(Collectors.toList());
         System.out.println("DEBUG: Number of cars found in delegation " + delegationId + ": " + carsInDelegation.size());
 
+        // 2. Filter cars based on vintage mode
+        List<Car> filteredByModeCars = carsInDelegation.stream()
+                .filter(car -> {
+                    if (isVintageMode) {
+                        return car.getYear() < 2000; // Example: Vintage cars are before year 2000
+                    } else {
+                        return car.getYear() >= 2000; // Example: Modern cars are year 2000 or later
+                    }
+                })
+                .collect(Collectors.toList());
+        System.out.println("DEBUG: Number of cars filtered by mode (" + (isVintageMode ? "Vintage" : "Modern") + "): " + filteredByModeCars.size());
+
+
         List<Car> availableCars = new ArrayList<>();
 
-        // 2. For each car, check if there are any overlapping bookings
-        for (Car car : carsInDelegation) {
+        // 3. For each car, check if there are any overlapping bookings
+        for (Car car : filteredByModeCars) { // Iterate over cars already filtered by mode
             String carUniqueId = car.getOperation(); // Use car.getOperation() as the unique ID for the car
             if (carUniqueId == null || carUniqueId.isEmpty()) {
                 System.err.println("WARNING: Car found with null or empty unique ID (operation). Skipping: " + car.getMake() + " " + car.getModel());

@@ -16,6 +16,22 @@ export const config: ViewConfig = {
   title: 'home'
 };
 
+// Función de ayuda para normalizar cadenas para nombres de archivo
+// Elimina acentos, diacríticos, reemplaza espacios con guiones bajos y limpia caracteres no permitidos.
+function sanitizeFilenamePart(text: string): string {
+  return text
+    .normalize("NFD") // Normaliza a la forma de descomposición canónica (ej. 'ë' -> 'e' + '¨')
+    .replace(/[\u0300-\u036f]/g, "") // Elimina las marcas diacríticas (acentos, diéresis, etc.)
+    .replace(/\s+/g, '_') // Reemplaza uno o más espacios con un guion bajo
+    .replace(/[^a-zA-Z0-9_.-]/g, ''); // Elimina cualquier carácter que no sea alfanumérico, guion bajo, punto o guion
+}
+
+// Función de guarda de tipo para asegurar que el objeto Car tiene propiedades 'make', 'model' y 'year'
+function isCarWithMakeAndModel(car: Car): car is Car & { make: string; model: string; year: number; color?: string; price?: number; rented?: boolean; } {
+  return typeof car.make === 'string' && typeof car.model === 'string' && typeof car.year === 'number';
+}
+
+
 // Componente principal de la vista Home
 export default function HomeView() {
   const navigate = useNavigate(); // Hook para la navegación
@@ -26,7 +42,6 @@ export default function HomeView() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   // Estado para controlar la visibilidad del diálogo de resultados de coches
   const [isResultsDialogOpen, setIsResultsDialogOpen] = useState(false);
-  // Eliminado: isBookingsDialogOpen ya no es necesario aquí
 
   // Estados para las fechas seleccionadas en el DatePicker
   const [startDate, setStartDate] = useState<string | null>(null);
@@ -40,7 +55,6 @@ export default function HomeView() {
   const [delegationOptions, setDelegationOptions] = useState<{ value: string; label: string; city: string }[]>([]);
   // Estado para almacenar los coches disponibles después de la búsqueda
   const [availableCarsResult, setAvailableCarsResult] = useState<Car[] | null>(null);
-  // Eliminado: allBookings ya no es necesario aquí
   // Estado para mensajes de error o advertencia en la UI
   const [searchMessage, setSearchMessage] = useState<string | null>(null);
 
@@ -97,8 +111,8 @@ export default function HomeView() {
       setSelectedDelegationLabel(currentDelegation ? currentDelegation.label : null);
 
       try {
-        // Llama al nuevo endpoint del backend con delegationId
-        const cars = await DelegationEndpoint.getAvailableCars(selectedDelegationId, startDate, endDate);
+        // Llama al nuevo endpoint del backend con delegationId y isVintageMode
+        const cars = await DelegationEndpoint.getAvailableCars(selectedDelegationId, startDate, endDate, isVintageMode);
         setAvailableCarsResult(cars); // Almacena los coches disponibles en el estado
         setIsCalendarOpen(false); // Cierra el diálogo del calendario
         setIsResultsDialogOpen(true); // Abre el diálogo de resultados
@@ -166,14 +180,34 @@ export default function HomeView() {
     navigate('/BookingsView'); // Navega a la nueva ruta /BookingsView (nombre del archivo)
   };
 
+  // Función para generar URL de imagen de placeholder o API externa
+  const getCarThumbnailImageUrl = (car: Car) => {
+    // Determina si el coche actual es vintage (para la visualización de la imagen)
+    const isCurrentCarVintage = car.year < 2000;
+
+    if (isVintageMode && isCurrentCarVintage) {
+      // Ruta local para coches vintage en modo vintage
+      const localImagePath = `/images/${sanitizeFilenamePart(car.make)}_${sanitizeFilenamePart(car.model)}.webp`;
+      console.log("DEBUG: Generated local vintage car image URL:", localImagePath);
+      return localImagePath;
+    } else {
+      // API externa para coches modernos o si no es modo vintage
+      const imageUrl = `https://cdn.imagin.studio/getimage?customer=img&make=${encodeURIComponent(car.make)}&modelFamily=${encodeURIComponent(car.model)}&paintId=${encodeURIComponent(car.color || '')}&zoomType=fullscreen`;
+      console.log("DEBUG: Generated external modern car image URL:", imageUrl);
+      return imageUrl;
+    }
+  };
+
+
   return (
     <div className="flex flex-col h-full items-center justify-center p-l text-center box-border">
       {/* Lógica condicional para la imagen principal */}
       <img
         style={{ width: '200px' }}
-        src={isVintageMode ? "images/empty-plant.png" : "images/NewLogo.webp"}
+        src={isVintageMode ? "/images/empty-plant.png" : "/images/NewLogo.webp"}
         alt={isVintageMode ? "Empty Plant" : "New Logo"}
         onError={(e) => {
+          console.error("ERROR: Failed to load main image:", e.currentTarget.src, e); // Log de error
           (e.target as HTMLImageElement).src = 'https://placehold.co/200x200?text=Image+Not+Found';
         }}
       />
@@ -217,7 +251,7 @@ export default function HomeView() {
       </Button>
 
       {/* Mensaje de búsqueda (errores/advertencias) - se muestra aquí si los diálogos no están abiertos */}
-      {searchMessage && !isResultsDialogOpen && ( // Eliminado isBookingsDialogOpen de la condición
+      {searchMessage && !isResultsDialogOpen && (
         <div style={{ marginTop: '1rem', color: 'red', fontWeight: 'bold' }}>
           {searchMessage}
         </div>
@@ -276,14 +310,26 @@ export default function HomeView() {
           {availableCarsResult && availableCarsResult.length > 0 ? (
             <ul style={{ listStyleType: 'none', padding: 0 }}>
               {availableCarsResult.map(car => (
-                <li key={`${car.delegationId}-${car.operation}-${car.make}-${car.model}`} style={{ marginBottom: '0.5rem', borderBottom: '1px dashed #eee', paddingBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>
-                    <strong>{car.make} {car.model}</strong> ({car.year}) - {car.color} - {car.price} €
-                  </span>
-                  <Button theme="primary" onClick={() => handleBookCar(car)} style={{ marginLeft: '1rem' }}>
-                    Reservar
-                  </Button>
-                </li>
+                // Asegúrate de que el coche tiene las propiedades necesarias antes de renderizar la imagen
+                isCarWithMakeAndModel(car) && (
+                  <li key={`${car.delegationId}-${car.operation}-${car.make}-${car.model}`} style={{ marginBottom: '0.5rem', borderBottom: '1px dashed #eee', paddingBottom: '0.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                    <img
+                      src={getCarThumbnailImageUrl(car)} // Usamos la nueva función para la URL
+                      alt={`${car.make} ${car.model}`}
+                      style={{ width: '150px', height: '100px', objectFit: 'cover', borderRadius: '8px', marginBottom: '0.5rem' }}
+                      onError={(e) => {
+                        console.error("ERROR: Failed to load car thumbnail image:", e.currentTarget.src, e); // Log de error
+                        (e.target as HTMLImageElement).src = 'https://placehold.co/150x100/E0E0E0/333333?text=No+Image';
+                      }}
+                    />
+                    <span>
+                      <strong>{car.make} {car.model}</strong> ({car.year}) - {car.color} - {car.price} €
+                    </span>
+                    <Button theme="primary" onClick={() => handleBookCar(car)} style={{ marginTop: '1rem' }}>
+                      Reservar
+                    </Button>
+                  </li>
+                )
               ))}
             </ul>
           ) : (
@@ -294,8 +340,6 @@ export default function HomeView() {
           </Button>
         </div>
       </Dialog>
-
-      {/* Eliminado: El diálogo de "Todas las Reservas" ya no está aquí */}
     </div>
   );
 }
