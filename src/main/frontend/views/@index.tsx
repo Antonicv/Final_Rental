@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'; // Importar useEffect y useState
 
 export const config: ViewConfig = {
   menu: { order: 0, icon: 'line-awesome/svg/home-solid.svg' },
-  title: ''
+  title: 'Pagina de Inicio',
 };
 
 export default function HomeView() {
