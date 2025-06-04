@@ -74,9 +74,9 @@ export default function BookingsView() {
       const validDelegations = (delegationsResult ?? []).filter((d): d is Delegation => d !== undefined && d !== null);
       setAllDelegations(validDelegations);
       console.log(`DEBUG (BookingsView): Se cargaron ${validDelegations.length} delegaciones.`);
-      // NUEVO DEBUG: Log detallado de las delegaciones cargadas
+      // DEBUG: Log detallado de las delegaciones cargadas
       validDelegations.forEach(d => {
-        console.log(`DEBUG (BookingsView): Delegación cargada: ID=${d.delegationId}, Nombre=${d.name}, Ciudad=${d.city}, Dirección=${d.adress}, Gestor=${d.manager}, Teléfono=${d.telf}`);
+        console.log(`DEBUG (BookingsView): Delegación cargada: ID=${d.delegationId}, Nombre=${d.name}, Ciudad=${d.city}, Dirección=${d.adress}, Gestor=${d.manager}, Teléfono=${d.telf}, Lat=${d.lat}, Long=${d.longVal}, CantidadCoches=${d.carQuantity}`);
       });
 
 
@@ -119,7 +119,7 @@ export default function BookingsView() {
     return allDelegations.find(delegation => delegation.delegationId === delegationId);
   };
 
-  // NUEVO: Manejador para borrar una reserva
+  // Manejador para borrar una reserva
   const handleDeleteBooking = async (booking: Booking) => {
     if (!booking.carId || !booking.startDate) {
       setError('Error: No se puede borrar la reserva. Faltan datos clave (carId o startDate).');
@@ -149,7 +149,7 @@ export default function BookingsView() {
     }
   };
 
-  // NUEVO: Manejador para modificar una reserva (placeholder)
+  // Manejador para modificar una reserva (placeholder)
   const handleModifyBooking = (booking: Booking) => {
     // Aquí podrías abrir un diálogo o navegar a un formulario de edición
     // con los datos de la reserva pre-rellenados.
@@ -184,11 +184,36 @@ export default function BookingsView() {
               const delegation = getDelegationDetails(booking.delegationId || '');
               const isCurrentCarVintage = car ? car.year < 2000 : false; // Necesario para la conversión de precio
 
+              // Calcular el precio total usando Date nativo
+              let totalPrice = 'N/A';
+              if (car && booking.startDate && booking.endDate) {
+                try {
+                  const start = new Date(booking.startDate);
+                  const end = new Date(booking.endDate);
+                  // Calcular la diferencia en milisegundos y luego convertir a días
+                  const diffTime = Math.abs(end.getTime() - start.getTime());
+                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); // Redondea hacia arriba para incluir el día de fin
+                  const duration = diffDays + 1; // +1 para incluir el día de inicio y fin
+
+                  if (duration > 0) {
+                    const calculatedPrice = car.price * duration;
+                    totalPrice = isVintageMode && isCurrentCarVintage
+                      ? `${(calculatedPrice * EUR_TO_PTS_RATE).toLocaleString(undefined, { maximumFractionDigits: 0 })} Pts`
+                      : `${calculatedPrice.toFixed(2)} €`;
+                  } else {
+                    totalPrice = 'Fechas inválidas';
+                  }
+                } catch (e) {
+                  console.error(`ERROR (BookingsView): Error calculando precio total para booking ${booking.bookingId}:`, e);
+                  totalPrice = 'Error cálculo';
+                }
+              }
+
               console.log(`DEBUG (BookingsView): Procesando reserva ${booking.bookingId}`);
               console.log(`DEBUG (BookingsView): Coche encontrado para reserva:`, car);
               console.log(`DEBUG (BookingsView): Delegación encontrada para reserva:`, delegation);
               if (delegation) {
-                console.log(`DEBUG (BookingsView): Detalles de Delegación: Nombre=${delegation.name}, Ciudad=${delegation.city}, Dirección=${delegation.adress}, Gestor=${delegation.manager}, Teléfono=${delegation.telf}, Lat=${delegation.lat}, Long=${delegation.long}, CantidadCoches=${delegation.carQuantity}`);
+                console.log(`DEBUG (BookingsView): Detalles de Delegación: Nombre=${delegation.name}, Ciudad=${delegation.city}, Dirección=${delegation.adress}, Gestor=${delegation.manager}, Teléfono=${delegation.telf}, Lat=${delegation.lat}, Long=${delegation.longVal}, CantidadCoches=${delegation.carQuantity}`);
               } else {
                 console.log(`DEBUG (BookingsView): No se encontraron detalles de delegación para ID: ${booking.delegationId}`);
               }
@@ -219,7 +244,7 @@ export default function BookingsView() {
                       <p className="text-gray-700">
                         <span className="font-medium">Coche:</span> {car.make || 'N/A'} {car.model || 'N/A'} ({car.year || 'N/A'}) - {car.color || 'N/A'}
                         <br />
-                        <span className="font-medium">Precio:</span>{' '}
+                        <span className="font-medium">Precio por día:</span>{' '}
                         <strong>
                           {isVintageMode && isCurrentCarVintage // La lógica de precio sigue dependiendo del modo vintage
                             ? `${(car.price * EUR_TO_PTS_RATE).toLocaleString(undefined, { maximumFractionDigits: 0 })} Pts`
@@ -246,7 +271,7 @@ export default function BookingsView() {
                         <span className="font-medium">Teléfono:</span> {delegation.telf || 'N/A'}
                         {/* Puedes añadir lat, long, carQuantity aquí si lo deseas */}
                         {/* <br />
-                        <span className="font-medium">Lat/Long:</span> {delegation.lat || 'N/A'}/{delegation.long || 'N/A'}
+                        <span className="font-medium">Lat/Long:</span> {delegation.lat || 'N/A'}/{delegation.longVal || 'N/A'}
                         <br />
                         <span className="font-medium">Coches en Delegación:</span> {delegation.carQuantity || 'N/A'} */}
                       </p>
@@ -255,6 +280,10 @@ export default function BookingsView() {
                     )}
                     <p className="text-gray-700 text-sm">
                       <span className="font-medium">Fecha de Reserva:</span> {booking.bookingDate || 'N/A'}
+                    </p>
+                    {/* NUEVO: Mostrar el precio total */}
+                    <p className="text-lg font-bold text-gray-900 mt-2">
+                        <span className="text-purple-700">Precio Total:</span> {totalPrice}
                     </p>
                     <div className="flex gap-2 mt-2 justify-center sm:justify-start">
                       <Button theme="error small" onClick={() => handleDeleteBooking(booking)}>
