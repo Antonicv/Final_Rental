@@ -5,14 +5,8 @@ import User from 'Frontend/generated/dev/renting/users/User';
 
 
 export const config: ViewConfig = {
-  menu: {
-    title: '\u2003Create User',
-    order: 3, // order within the Create submenu
-    //icon: 'line-awesome/svg/users-cog-solid.svg',
-  },
-
+  title: 'Crear Usuario', // Mantén el título
 };
-
 const sampleUser: User = {
   userId: "USER#001",
   operation: "profile",

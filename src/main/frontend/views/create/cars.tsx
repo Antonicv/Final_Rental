@@ -5,12 +5,7 @@ import Car from 'Frontend/generated/dev/renting/delegations/Car';
 
 
 export const config: ViewConfig = {
-  menu: {
-    title: '\u2003Create Car', // two non-breaking spaces for indentation
-    order: 2,
-    //icon: 'line-awesome/svg/car-side-solid.svg',
-  },
-
+  title: 'Crear Coche', // Mantén el título
 };
 
 const sampleCar: Car = {

@@ -6,12 +6,11 @@ import Car from 'Frontend/generated/dev/renting/delegations/Car'; // Importar Ca
 import Delegation from 'Frontend/generated/dev/renting/delegations/Delegation'; // Importar Delegation para tipado
 import { Button } from '@vaadin/react-components/Button'; // Importar Button para las acciones
 
+
 // Configuración de la vista para el router de Hilla
 export const config: ViewConfig = {
-  menu: { order: 1, icon: 'line-awesome/svg/calendar-check-solid.svg', title: 'Mis Reservas' },
-  title: 'Reservas'
+  title: 'Mis Reservas', // Mantén el título
 };
-
 // Función de ayuda para normalizar cadenas para nombres de archivo
 // Elimina acentos, diacríticos, reemplaza espacios con guiones bajos y limpia caracteres no permitidos.
 function sanitizeFilenamePart(text: string): string {
@@ -140,8 +139,7 @@ export default function BookingsView() {
     //   ...
     // }
     // Por ahora, para evitar el bloqueo, usaremos un confirm simple en la consola
-    console.log(`Confirmación de borrado: ¿Estás seguro de que quieres borrar la reserva del coche ${booking.carId} para el ${booking.startDate}?`);
-    // Simulación de confirmación para desarrollo. En producción, usar un componente Dialog.
+    console.log(`DEBUG (Frontend): Attempting to delete booking with carId: "${booking.carId}" and startDate: "${booking.startDate}"`); // Nuevo log
     const confirmed = true; // Cambiar a false para probar la cancelación
 
     if (confirmed) {

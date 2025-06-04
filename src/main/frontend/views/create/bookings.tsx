@@ -1,90 +1,59 @@
 import { ViewConfig } from '@vaadin/hilla-file-router/types.js';
+import { useEffect, useState } from 'react';
 import { UserEndpoint } from 'Frontend/generated/endpoints';
-import { Button } from '@vaadin/react-components/Button';
-import Booking from 'Frontend/generated/dev/renting/users/Booking';
-import Car from 'Frontend/generated/dev/renting/delegations/Car';
-import Delegation from 'Frontend/generated/dev/renting/delegations/Delegation';
-
+import { Grid } from '@vaadin/react-components/Grid';
+import { GridColumn } from '@vaadin/react-components/GridColumn';
 
 export const config: ViewConfig = {
-  menu: {
-    title: '\u2003Create Booking',
-    order: 4, // order within the Create submenu
-   // icon: 'line-awesome/svg/list-ol-solid.svg',
-  },
-
+  title: 'Crear Reserva', // Mantén el título
 };
+export default function Bookings() {
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    UserEndpoint.getBookingsByUser('USER#001')
+      .then((result) => setBookings(result ?? []))
+      .catch((err) => {
+        console.error('Failed to fetch bookings:', err);
+        setBookings([]);
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
-const sampleBooking: Booking = {
-  userId: "USER#001",
-  operation: "booking#2025#001",
-  car: {
-    delegationId: "DELEG#001",
-    operation: "car#2025#001",
-    make: "Toyota",
-    model: "Camry",
-    year: 2025,
-    color: "Blue",
-    rented: false,
-    price: 40000
-  },
-  status: "ACTIVE",
-  startDate: "2025-10-01",
-  endDate: "2025-10-07",
-  totalToPayment: 456.56,
-  statusPayment: "PAID",
-  statusBooking: "CREATED",
-  pickUpDelegation: {
-    delegationId: "DELEG#001",
-    operation: "profile",
-    name: "Barcelona Central",
-    address: "Carrer de la Marina, 15",
-    city: "Barcelona",
-    availableCarQty: 12,
-    phone: "+34 931 234 567",
-    email: "central@renting.com"
-  },
-  deliverDelegation: {
-    delegationId: "DELEG#001",
-    operation: "profile",
-    name: "Barcelona Central",
-    address: "Carrer de la Marina, 15",
-    city: "Barcelona",
-    availableCarQty: 12,
-    phone: "+34 931 234 567",
-    email: "central@renting.com"
-  }
-};
-
-export default function BookingsView() {
-  const handleSaveBooking = async () => {
-    try {
-      await UserEndpoint.saveBooking(sampleBooking);
-      alert('Booking saved successfully!');
-    } catch (error) {
-      console.error('Error saving booking:', error);
-      alert('Failed to save user');
-    }
-  };
+  if (loading) return <div>Loading bookings...</div>;
+  if (bookings.length === 0) return <div>No bookings found.</div>;
 
   return (
-    <div className="flex flex-col h-full items-center justify-center p-l text-center box-border">
-      <img style={{ width: '200px' }} src="images/empty-plant.png" />
-      <h2>Booking Management</h2>
-
-      <div className="card p-m">
-        <pre className="text-left">
-          {JSON.stringify(sampleBooking, null, 2)}
-        </pre>
-        <Button onClick={handleSaveBooking}>
-          Save Booking
-        </Button>
-      </div>
-
-      <p>Manage user bookings and dates</p>
+    <div>
+        <div className="space-y-m">
+            <p>Bookings for USER#001</p>
+        </div>
+      <Grid items={bookings}>
+        <GridColumn path="operation" header="Booking ID" />
+        <GridColumn
+          header="Car"
+          renderer={({ item }) =>
+            `${item.car?.make ?? ''} ${item.car?.model ?? ''}`
+          }
+        />
+        <GridColumn path="startDate" header="Start Date" />
+        <GridColumn path="endDate" header="End Date" />
+        <GridColumn
+          header="Pick Up Delegation"
+          renderer={({ item }) => item.pickUpDelegation?.name ?? ''}
+        />
+        <GridColumn
+          header="Deliver Delegation"
+          renderer={({ item }) => item.deliverDelegation?.name ?? ''}
+        />
+        <GridColumn path="statusBooking" header="Booking Status" />
+        <GridColumn path="statusPayment" header="Payment Status" />
+        <GridColumn
+          header="Total (€)"
+          renderer={({ item }) => item.totalToPayment?.toFixed(2) ?? '0.00'}
+        />
+      </Grid>
     </div>
   );
 }
-
-
