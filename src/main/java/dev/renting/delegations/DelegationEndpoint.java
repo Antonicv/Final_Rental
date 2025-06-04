@@ -51,6 +51,22 @@ public class DelegationEndpoint {
         System.out.println("DEBUG: Booking saved successfully.");
     }
 
+    /**
+     * Deletes a booking from the Bookings table.
+     * Requires carId and startDate as they form the primary key.
+     * @param carId The carId of the booking to delete.
+     * @param startDate The startDate of the booking to delete.
+     */
+    public void deleteBooking(String carId, String startDate) {
+        System.out.println("DEBUG: deleteBooking called for carId: " + carId + " and startDate: " + startDate);
+        // Create a dummy Booking object with just the primary key for deletion
+        Booking bookingToDelete = new Booking();
+        bookingToDelete.setCarId(carId);
+        bookingToDelete.setStartDate(startDate);
+        delegationRepository.delete(bookingToDelete); // Assuming the repository can delete Booking objects
+        System.out.println("DEBUG: Booking deleted successfully.");
+    }
+
     // Get Delegation by keys
     public Delegation getDelegation(String delegationId, String operation) {
         return delegationRepository.get(delegationId, operation, Delegation.class);
@@ -112,6 +128,7 @@ public class DelegationEndpoint {
             // Lanza una excepción para que el frontend reciba un error claro
             throw new IllegalArgumentException("Invalid date format. ExpectedWHEREAS-MM-DD.", e);
         }
+
 
         // 1. Get all cars for that delegation
         List<Car> carsInDelegation = delegationRepository.listAllCars().stream()

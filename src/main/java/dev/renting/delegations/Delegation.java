@@ -7,16 +7,23 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSortK
 
 @DynamoDbBean
 public class Delegation {
-    private String delegationId;    // Partition Key
-    private String operation;       // Sort Key
+
+    private String delegationId; // Clave de partición
+    private String operation;    // Clave de ordenación (ej. "profile")
     private String name;
-    private String address;
+    private String adress;
     private String city;
-    private int availableCarQty;
-    private String phone;
-    private String email;
+    private String manager;
+    private String telf;
+    private int carQuantity;
+    private double lat;
+    private double longVal; // 'long' es una palabra reservada en Java, usar 'longVal' o similar
+
+    // Constructor vacío requerido por DynamoDB Enhanced Client
+    public Delegation() {}
 
     @DynamoDbPartitionKey
+    @DynamoDbAttribute("delegationId")
     public String getDelegationId() {
         return delegationId;
     }
@@ -26,6 +33,7 @@ public class Delegation {
     }
 
     @DynamoDbSortKey
+    @DynamoDbAttribute("operation")
     public String getOperation() {
         return operation;
     }
@@ -43,13 +51,13 @@ public class Delegation {
         this.name = name;
     }
 
-    @DynamoDbAttribute("address")
-    public String getAddress() {
-        return address;
+    @DynamoDbAttribute("adress")
+    public String getAdress() {
+        return adress;
     }
 
-    public void setAddress(String address) {
-        this.address = address;
+    public void setAdress(String adress) {
+        this.adress = adress;
     }
 
     @DynamoDbAttribute("city")
@@ -61,30 +69,49 @@ public class Delegation {
         this.city = city;
     }
 
-    @DynamoDbAttribute("availableCarQty")
-    public int getAvailableCarQty() {
-        return availableCarQty;
+    @DynamoDbAttribute("manager")
+    public String getManager() {
+        return manager;
     }
 
-    public void setAvailableCarQty(int availableCarQty) {
-        this.availableCarQty = availableCarQty;
+    public void setManager(String manager) {
+        this.manager = manager;
     }
 
-    @DynamoDbAttribute("phone")
-    public String getPhone() {
-        return phone;
+    @DynamoDbAttribute("telf")
+    public String getTelf() {
+        return telf;
     }
 
-    public void setPhone(String phone) {
-        this.phone = phone;
+    public void setTelf(String telf) {
+        this.telf = telf;
     }
 
-    @DynamoDbAttribute("email")
-    public String getEmail() {
-        return email;
+    @DynamoDbAttribute("carQuantity")
+    public int getCarQuantity() {
+        return carQuantity;
     }
 
-    public void setEmail(String email) {
-        this.email = email;
+    public void setCarQuantity(int carQuantity) {
+        this.carQuantity = carQuantity;
+    }
+
+    @DynamoDbAttribute("lat")
+    public double getLat() {
+        return lat;
+    }
+
+    public void setLat(double lat) {
+        this.lat = lat;
+    }
+
+    // Usar un nombre diferente para evitar conflicto con la palabra reservada 'long'
+    @DynamoDbAttribute("long") // La anotación debe coincidir con el nombre del atributo en DynamoDB
+    public double getLongVal() {
+        return longVal;
+    }
+
+    public void setLongVal(double longVal) {
+        this.longVal = longVal;
     }
 }
