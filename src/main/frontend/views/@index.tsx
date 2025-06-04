@@ -7,6 +7,8 @@ import { Select } from '@vaadin/react-components/Select'; // Importar Select par
 import { DelegationEndpoint } from 'Frontend/generated/endpoints'; // Importar DelegationEndpoint
 import Car from 'Frontend/generated/dev/renting/delegations/Car'; // Importar Car para tipado
 import Delegation from 'Frontend/generated/dev/renting/delegations/Delegation'; // Importar Delegation para tipado
+import Booking from 'Frontend/generated/dev/renting/delegations/Booking'; // Importar el tipo Booking
+import { useNavigate } from 'react-router-dom'; // Importar useNavigate para la navegación
 
 // Configuración de la vista para el router de Hilla
 export const config: ViewConfig = {
@@ -16,22 +18,29 @@ export const config: ViewConfig = {
 
 // Componente principal de la vista Home
 export default function HomeView() {
+  const navigate = useNavigate(); // Hook para la navegación
+
   // Estado para controlar si el modo vintage está activo (leído del elemento <html>)
   const [isVintageMode, setIsVintageMode] = useState(document.documentElement.classList.contains('vintage-mode'));
   // Estado para controlar la visibilidad del diálogo del calendario
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   // Estado para controlar la visibilidad del diálogo de resultados de coches
   const [isResultsDialogOpen, setIsResultsDialogOpen] = useState(false);
+  // Eliminado: isBookingsDialogOpen ya no es necesario aquí
+
   // Estados para las fechas seleccionadas en el DatePicker
   const [startDate, setStartDate] = useState<string | null>(null);
   // Estados para las fechas seleccionadas en el DatePicker
   const [endDate, setEndDate] = useState<string | null>(null);
-  // Estado para la ciudad de la delegación seleccionada en el Select
-  const [selectedDelegationCity, setSelectedDelegationCity] = useState<string>('');
+  // Estado para el ID de la delegación seleccionada en el Select
+  const [selectedDelegationId, setSelectedDelegationId] = useState<string | null>(null);
+  // Estado para el nombre/ciudad de la delegación seleccionada (para mostrar en la UI)
+  const [selectedDelegationLabel, setSelectedDelegationLabel] = useState<string | null>(null);
   // Estado para las opciones del Select de delegaciones, obtenidas del backend
-  const [delegationOptions, setDelegationOptions] = useState<{ value: string; label: string }[]>([]);
+  const [delegationOptions, setDelegationOptions] = useState<{ value: string; label: string; city: string }[]>([]);
   // Estado para almacenar los coches disponibles después de la búsqueda
   const [availableCarsResult, setAvailableCarsResult] = useState<Car[] | null>(null);
+  // Eliminado: allBookings ya no es necesario aquí
   // Estado para mensajes de error o advertencia en la UI
   const [searchMessage, setSearchMessage] = useState<string | null>(null);
 
@@ -64,8 +73,9 @@ export default function HomeView() {
         const options = (delegations ?? [])
           .filter((d): d is Delegation => d !== undefined && d !== null) // Filtra elementos nulos/undefined
           .map(d => ({
-            value: d.city || '', // El valor de la opción será la ciudad de la delegación
-            label: d.name || d.city || '' // La etiqueta visible será el nombre o la ciudad
+            value: d.delegationId || '', // El valor de la opción será el delegationId
+            label: d.name || d.city || '', // La etiqueta visible será el nombre o la ciudad
+            city: d.city || '' // Guardamos la ciudad también si la necesitamos para mostrar
           }));
         setDelegationOptions(options); // Actualiza el estado con las opciones de delegación
       })
@@ -76,20 +86,26 @@ export default function HomeView() {
 
   // Manejador para el botón "Buscar Disponibilidad" dentro del diálogo
   const handleAvailabilitySearch = async () => {
-    setSearchMessage(null); // Clear previous messages
+    setSearchMessage(null); // Limpiar mensajes anteriores
     // Verifica que se hayan seleccionado fechas y una delegación
-    if (startDate && endDate && selectedDelegationCity) {
-      console.log(`Buscando disponibilidad para la delegación: ${selectedDelegationCity}`);
+    if (startDate && endDate && selectedDelegationId) { // Ahora verificamos selectedDelegationId
+      console.log(`Buscando disponibilidad para la delegación ID: ${selectedDelegationId}`);
       console.log(`Desde: ${startDate} Hasta: ${endDate}`);
 
+      // Actualizar el label de la delegación seleccionada para mostrarlo en el diálogo de resultados
+      const currentDelegation = delegationOptions.find(opt => opt.value === selectedDelegationId);
+      setSelectedDelegationLabel(currentDelegation ? currentDelegation.label : null);
+
       try {
-        // Llama al nuevo endpoint del backend para obtener coches disponibles
-        const cars = await DelegationEndpoint.getAvailableCars(selectedDelegationCity, startDate, endDate);
+        // Llama al nuevo endpoint del backend con delegationId
+        const cars = await DelegationEndpoint.getAvailableCars(selectedDelegationId, startDate, endDate);
         setAvailableCarsResult(cars); // Almacena los coches disponibles en el estado
         setIsCalendarOpen(false); // Cierra el diálogo del calendario
         setIsResultsDialogOpen(true); // Abre el diálogo de resultados
         if (cars.length === 0) {
           setSearchMessage('No se encontraron coches disponibles para la delegación y fechas seleccionadas.');
+        } else {
+          setSearchMessage(null); // Limpiar mensaje si hay resultados
         }
       } catch (error) {
         console.error('Error al buscar disponibilidad:', error); // Log de error si falla la búsqueda
@@ -99,38 +115,65 @@ export default function HomeView() {
         setSearchMessage('Hubo un error al buscar disponibilidad. Por favor, inténtalo de nuevo más tarde.');
       }
     } else {
-      setSearchMessage('Por favor, selecciona ambas fechas y la delegación.'); // Advertencia si faltan datos
+      setSearchMessage('Por favor, selecciona ambas fechas y una delegación.'); // Advertencia si faltan datos
       // Mantener el diálogo del calendario abierto para que el usuario complete los campos
     }
   };
 
-  // Función para descargar los resultados en formato JSON (eliminada del botón, pero se mantiene la función por si se necesita en otro contexto)
-  const handleDownloadJson = () => {
-    if (availableCarsResult && availableCarsResult.length > 0) {
-      const jsonString = JSON.stringify(availableCarsResult, null, 2); // Formatea el JSON con indentación
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `coches_disponibles_${selectedDelegationCity}_${startDate}_${endDate}.json`; // Nombre del archivo
-      document.body.appendChild(a); // Añadir al DOM temporalmente
-      a.click(); // Simular clic para descargar
-      document.body.removeChild(a); // Eliminar del DOM
-      URL.revokeObjectURL(url); // Liberar el objeto URL
-    } else {
-      console.warn('No hay coches disponibles para descargar en JSON.');
+  // Manejador para reservar un coche
+  const handleBookCar = async (car: Car) => {
+    if (!selectedDelegationId || !startDate || !endDate) {
+      setSearchMessage('Error: Las fechas o la delegación no están seleccionadas para la reserva.');
+      setIsResultsDialogOpen(false); // Cierra el diálogo de resultados si hay un error de datos
+      return;
+    }
+
+    const userId = "USER#001"; // ID de usuario fijo para el ejemplo
+    const carUniqueId = car.operation; // El ID único del coche es su 'operation'
+
+    if (!carUniqueId) {
+      setSearchMessage('Error: ID de coche no disponible para reservar.');
+      // No cerrar el diálogo de resultados para que el usuario vea el mensaje
+      return;
+    }
+
+    const booking: Booking = {
+      carId: carUniqueId,
+      startDate: startDate,
+      endDate: endDate,
+      userId: userId,
+      delegationId: selectedDelegationId, // Usamos el ID de la delegación seleccionada
+      bookingId: '', // Será generado por el backend
+      bookingDate: '' // Será generado por el backend
+    };
+
+    try {
+      await DelegationEndpoint.saveBooking(booking);
+      setSearchMessage(`Coche ${car.make} ${car.model} reservado con éxito.`);
+      // Opcional: Volver a buscar disponibilidad para actualizar la lista (si la reserva afecta la disponibilidad inmediata)
+      // Esto es importante para que el coche reservado desaparezca de la lista
+      await handleAvailabilitySearch(); // Re-ejecutar la búsqueda para actualizar la lista
+      // No cerramos el diálogo de resultados automáticamente para que el usuario vea el mensaje de éxito
+    } catch (error) {
+      console.error('Error al reservar el coche:', error);
+      setSearchMessage('Error al reservar el coche. Por favor, inténtalo de nuevo.');
+      // Mantener el diálogo de resultados abierto para mostrar el mensaje de error
     }
   };
 
+  // Manejador para navegar a la página de reservas
+  const handleViewAllBookings = () => {
+    navigate('/BookingsView'); // Navega a la nueva ruta /BookingsView (nombre del archivo)
+  };
+
   return (
-    <div className="flex flex-col h-full items-center justify-center p-l text-center box-box-border">
+    <div className="flex flex-col h-full items-center justify-center p-l text-center box-border">
       {/* Lógica condicional para la imagen principal */}
       <img
         style={{ width: '200px' }}
         src={isVintageMode ? "images/empty-plant.png" : "images/NewLogo.webp"}
         alt={isVintageMode ? "Empty Plant" : "New Logo"}
         onError={(e) => {
-          // Fallback para imágenes no encontradas, mostrando un placeholder
           (e.target as HTMLImageElement).src = 'https://placehold.co/200x200?text=Image+Not+Found';
         }}
       />
@@ -139,13 +182,13 @@ export default function HomeView() {
         {isVintageMode ? "Vehículos a Pupilaje" : "Tu Próximo Vehículo te Espera"}
       </h2>
       {/* Lógica condicional para el subtítulo (H3 o P con formato) */}
-      {isVintageMode ? ( // Si el modo vintage está activo, usa un párrafo con formato
+      {isVintageMode ? (
         <p>
           Automóviles de postín para caballeros de distinción. ¿Desea usted conducir como un prócer, pero pagar como un jornalero? En nuestra casa de alquiler, el porvenir rueda sobre cuatro ruedas.
-          <br/> {/* Salto de línea */}
+          <br/>
           <strong>Súbase, arranque, deslúmbrese… y luego lo devuelve, claro. Motores modernos para espíritus de aventureros, con los últimos, últimos avances del progreso mecánico. Alquile hoy, presuma mañana. Y repita pasado.</strong>
         </p>
-      ) : ( // Si el modo normal está activo, usa el H3 original
+      ) : (
         <h3>
           Explora nuestra amplia selección de vehículos modernos y de alto rendimiento.
         </h3>
@@ -155,16 +198,26 @@ export default function HomeView() {
       <Button
         theme="primary"
         onClick={() => {
-          setIsCalendarOpen(true); // Abre el diálogo
+          setIsCalendarOpen(true);
           setSearchMessage(null); // Limpia mensajes de búsqueda anteriores
+          setAvailableCarsResult(null); // Limpia resultados anteriores
         }}
-        style={{ marginTop: '2rem' }} // Margen superior para separación
+        style={{ marginTop: '2rem' }}
       >
         Ver Disponibilidad
       </Button>
 
-      {/* Mensaje de búsqueda (errores/advertencias) */}
-      {searchMessage && (
+      {/* NUEVO BOTÓN: Ver Todas las Reservas (ahora navega a una nueva página) */}
+      <Button
+        theme="secondary"
+        onClick={handleViewAllBookings} // Llama a la función de navegación
+        style={{ marginTop: '1rem' }}
+      >
+        Ver Todas las Reservas
+      </Button>
+
+      {/* Mensaje de búsqueda (errores/advertencias) - se muestra aquí si los diálogos no están abiertos */}
+      {searchMessage && !isResultsDialogOpen && ( // Eliminado isBookingsDialogOpen de la condición
         <div style={{ marginTop: '1rem', color: 'red', fontWeight: 'bold' }}>
           {searchMessage}
         </div>
@@ -172,63 +225,68 @@ export default function HomeView() {
 
       {/* Componente Dialog para el calendario y selección de delegación */}
       <Dialog
-        headerTitle="Seleccionar Fechas y Delegación" // Título del diálogo
-        opened={isCalendarOpen} // Controla si el diálogo está abierto
-        onOpenedChanged={({ detail }) => setIsCalendarOpen(detail.value)} // Maneja el cierre del diálogo (ej. clic fuera)
-        overlayClass="custom-dialog-overlay" // Clase CSS opcional para personalizar el overlay
+        headerTitle="Seleccionar Fechas y Delegación"
+        opened={isCalendarOpen}
+        onOpenedChanged={({ detail }) => setIsCalendarOpen(detail.value)}
+        overlayClass="custom-dialog-overlay"
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem' }}>
-          {/* Selector de Fecha de Inicio */}
           <DatePicker
-            label="Fecha de Inicio" // Etiqueta del campo
-            value={startDate || ''} // Valor actual del campo
-            onValueChanged={({ detail }) => setStartDate(detail.value)} // Actualiza el estado al cambiar la fecha
-            style={{ width: '100%' }} // Ancho completo
+            label="Fecha de Inicio"
+            value={startDate || ''}
+            onValueChanged={({ detail }) => setStartDate(detail.value)}
+            style={{ width: '100%' }}
           />
-          {/* Selector de Fecha de Fin */}
           <DatePicker
-            label="Fecha de Fin" // Etiqueta del campo
-            value={endDate || ''} // Valor actual del campo
-            onValueChanged={({ detail }) => setEndDate(detail.value)} // Actualiza el estado al cambiar la fecha
-            style={{ width: '100%' }} // Ancho completo
+            label="Fecha de Fin"
+            value={endDate || ''}
+            onValueChanged={({ detail }) => setEndDate(detail.value)}
+            style={{ width: '100%' }}
           />
-          {/* Selector de Delegación (usando el componente Select) */}
           <Select
-            label="Delegación" // Etiqueta del campo
-            items={delegationOptions} // Opciones cargadas del backend
-            value={selectedDelegationCity} // Valor actual seleccionado
-            onValueChanged={({ detail }) => setSelectedDelegationCity(detail.value)} // Actualiza el estado al cambiar la selección
-            placeholder="Selecciona una delegación" // Texto de placeholder
-            style={{ width: '100%' }} // Ancho completo
+            label="Delegación"
+            items={delegationOptions}
+            value={selectedDelegationId || ''}
+            onValueChanged={({ detail }) => setSelectedDelegationId(detail.value)}
+            placeholder="Selecciona una delegación"
+            style={{ width: '100%' }}
           />
-          {/* Botón para iniciar la búsqueda de disponibilidad */}
           <Button theme="primary" onClick={handleAvailabilitySearch} style={{ marginTop: '1rem' }}>
             Buscar Disponibilidad
           </Button>
         </div>
       </Dialog>
 
-      {/* NUEVO: Diálogo para mostrar los resultados de coches disponibles */}
+      {/* Diálogo para mostrar los resultados de coches disponibles */}
       <Dialog
-        headerTitle={`Coches Disponibles en ${selectedDelegationCity}`}
+        headerTitle={`Coches Disponibles en ${selectedDelegationLabel || 'la delegación seleccionada'}`}
         opened={isResultsDialogOpen}
-        onOpenedChanged={({ detail }) => setIsResultsDialogOpen(detail.value)}
+        onOpenedChanged={({ detail }) => {
+          setIsResultsDialogOpen(detail.value);
+          if (!detail.value) {
+            setSearchMessage(null);
+          }
+        }}
         overlayClass="custom-dialog-overlay"
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem' }}>
-          {searchMessage && ( // Muestra el mensaje de error/no encontrados dentro del diálogo de resultados
+          {searchMessage && (
             <p style={{ color: 'red', fontWeight: 'bold' }}>{searchMessage}</p>
           )}
           {availableCarsResult && availableCarsResult.length > 0 ? (
             <ul style={{ listStyleType: 'none', padding: 0 }}>
               {availableCarsResult.map(car => (
-                <li key={`${car.delegationId}-${car.operation}-${car.make}-${car.model}`} style={{ marginBottom: '0.5rem', borderBottom: '1px dashed #eee', paddingBottom: '0.5rem' }}>
-                  <strong>{car.make} {car.model}</strong> ({car.year}) - {car.color} - {car.price} €
+                <li key={`${car.delegationId}-${car.operation}-${car.make}-${car.model}`} style={{ marginBottom: '0.5rem', borderBottom: '1px dashed #eee', paddingBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>
+                    <strong>{car.make} {car.model}</strong> ({car.year}) - {car.color} - {car.price} €
+                  </span>
+                  <Button theme="primary" onClick={() => handleBookCar(car)} style={{ marginLeft: '1rem' }}>
+                    Reservar
+                  </Button>
                 </li>
               ))}
             </ul>
           ) : (
-            // No se muestra este mensaje si searchMessage ya está presente
             !searchMessage && <p>No se encontraron coches disponibles para la delegación y fechas seleccionadas.</p>
           )}
           <Button theme="primary" onClick={() => setIsResultsDialogOpen(false)} style={{ marginTop: '1rem' }}>
@@ -236,6 +294,8 @@ export default function HomeView() {
           </Button>
         </div>
       </Dialog>
+
+      {/* Eliminado: El diálogo de "Todas las Reservas" ya no está aquí */}
     </div>
   );
 }

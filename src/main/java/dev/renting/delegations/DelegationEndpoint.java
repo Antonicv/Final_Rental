@@ -89,15 +89,15 @@ public class DelegationEndpoint {
     }
 
     /**
-     * Searches for available cars by delegation and date range, querying real bookings.
+     * Searches for available cars by delegation ID and date range, querying real bookings.
      *
-     * @param city The city of the delegation.
+     * @param delegationId The ID of the delegation.
      * @param startDateStr The start date of the rental period (YYYY-MM-DD format).
      * @param endDateStr The end date of the rental period (YYYY-MM-DD format).
      * @return A list of available cars.
      */
-    public List<Car> getAvailableCars(String city, String startDateStr, String endDateStr) {
-        System.out.println("DEBUG: getAvailableCars called for city: " + city + ", start: " + startDateStr + ", end: " + endDateStr);
+    public List<Car> getAvailableCars(String delegationId, String startDateStr, String endDateStr) {
+        System.out.println("DEBUG: getAvailableCars called for delegationId: " + delegationId + ", start: " + startDateStr + ", end: " + endDateStr);
 
         LocalDate queryStartDate;
         LocalDate queryEndDate;
@@ -108,24 +108,12 @@ public class DelegationEndpoint {
         } catch (DateTimeParseException e) {
             System.err.println("ERROR: Failed to parse dates: " + e.getMessage());
             // Lanza una excepción para que el frontend reciba un error claro
-            throw new IllegalArgumentException("Invalid date format. Expected YYYY-MM-DD.", e);
+            throw new IllegalArgumentException("Invalid date format. ExpectedWHEREAS-MM-DD.", e);
         }
 
 
-        // 1. Find the delegation by city
-        Optional<Delegation> targetDelegation = delegationRepository.listAllDelegations().stream()
-                .filter(d -> d.getCity() != null && d.getCity().equalsIgnoreCase(city))
-                .findFirst();
-
-        if (targetDelegation.isEmpty()) {
-            System.out.println("DEBUG: Delegation not found for city: " + city);
-            return new ArrayList<>(); // If delegation not found, no cars are available
-        }
-
-        String delegationId = targetDelegation.get().getDelegationId();
-        System.out.println("DEBUG: Delegation found: " + delegationId);
-
-        // 2. Get all cars for that delegation
+        // 1. Get all cars for that delegation
+        // No longer need to find delegation by city, as delegationId is passed directly
         List<Car> carsInDelegation = delegationRepository.listAllCars().stream()
                 .filter(car -> car.getDelegationId() != null && car.getDelegationId().equals(delegationId))
                 .collect(Collectors.toList());
@@ -133,11 +121,9 @@ public class DelegationEndpoint {
 
         List<Car> availableCars = new ArrayList<>();
 
-        // 3. For each car, check if there are any overlapping bookings
+        // 2. For each car, check if there are any overlapping bookings
         for (Car car : carsInDelegation) {
-            // IMPORTANT: Use car.getOperation() as the unique ID for the car,
-            // as 'operation' is the sort key for car items and matches 'carId' in Bookings.
-            String carUniqueId = car.getOperation();
+            String carUniqueId = car.getOperation(); // Use car.getOperation() as the unique ID for the car
             if (carUniqueId == null || carUniqueId.isEmpty()) {
                 System.err.println("WARNING: Car found with null or empty unique ID (operation). Skipping: " + car.getMake() + " " + car.getModel());
                 continue; // Skip this car if its unique ID is invalid
@@ -165,5 +151,18 @@ public class DelegationEndpoint {
         }
         System.out.println("DEBUG: Final count of available cars found: " + availableCars.size());
         return availableCars;
+    }
+
+    /**
+     * Lists all bookings from the Bookings table.
+     * Assumes the repository can list all items of type Booking.
+     * @return A list of all bookings.
+     */
+    public List<Booking> getAllBookings() {
+        System.out.println("DEBUG: getAllBookings called.");
+        // Assuming delegationRepository.listAllItems(Booking.class) can scan the Bookings table
+        List<Booking> allBookings = delegationRepository.listAllItems(Booking.class);
+        System.out.println("DEBUG: Total bookings found: " + allBookings.size());
+        return allBookings;
     }
 }
