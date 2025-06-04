@@ -11,29 +11,44 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 @Repository
 public class DelegationRepositoryImpl implements DelegationRepository {
 
     private final DynamoDbEnhancedClient enhancedClient;
-    private final String tableName = "Delegations";
+    private final String delegationsTableName = "Delegations"; // Nombre de la tabla principal de Delegaciones
+    private final String bookingsTableName = "Bookings"; // Nombre de la tabla de Reservas
 
     @Autowired
     public DelegationRepositoryImpl(DynamoDbEnhancedClient enhancedClient) {
         this.enhancedClient = enhancedClient;
     }
 
+    // Helper method to get the correct table name based on the class
+    private <T> String getTableNameForClass(Class<T> clazz) {
+        if (clazz.equals(Booking.class)) {
+            return bookingsTableName;
+        }
+        // Add more conditions here if you have other specific tables for other classes
+        return delegationsTableName; // Default to delegations table for other types (Car, Delegation)
+    }
+
     @Override
     public <T> void save(T item) {
+        // Usa el nombre de tabla correcto para la clase del ítem
+        String actualTableName = getTableNameForClass((Class<T>) item.getClass());
         DynamoDbTable<T> table =
                 enhancedClient.table(
-                        tableName,
+                        actualTableName,
                         TableSchema.fromBean((Class<T>) item.getClass()));
         table.putItem(item);
     }
 
     @Override
     public <T> T get(String partitionKey, String sortKey, Class<T> clazz) {
-        DynamoDbTable<T> table = enhancedClient.table(tableName, TableSchema.fromBean(clazz));
+        // Usa el nombre de tabla correcto para la clase
+        String actualTableName = getTableNameForClass(clazz);
+        DynamoDbTable<T> table = enhancedClient.table(actualTableName, TableSchema.fromBean(clazz));
         Key key = Key.builder()
                 .partitionValue(partitionKey)
                 .sortValue(sortKey)
@@ -43,27 +58,21 @@ public class DelegationRepositoryImpl implements DelegationRepository {
 
     @Override
     public <T> List<T> listByPartitionKey(String partitionKey, Class<T> clazz) {
-        DynamoDbTable<T> table = enhancedClient.table(tableName, TableSchema.fromBean(clazz));
+        // Usa el nombre de tabla correcto para la clase
+        String actualTableName = getTableNameForClass(clazz);
+        DynamoDbTable<T> table = enhancedClient.table(actualTableName, TableSchema.fromBean(clazz));
         QueryConditional queryConditional = QueryConditional.keyEqualTo(k -> k.partitionValue(partitionKey));
         List<T> items = new ArrayList<>();
+        // IMPORTANT: Avoid orderBy() in Firestore queries as it can lead to runtime errors
+        // due to missing indexes. If sorting is needed, fetch all data and sort in memory.
         table.query(queryConditional).items().forEach(items::add);
         return items;
     }
 
-   /* @Override
-    public List<Car> listAllCars() {
-        DynamoDbTable<Car> table = enhancedClient.table(tableName, TableSchema.fromBean(Car.class));
-        List<Car> cars = new ArrayList<>();
-        // You can add a filterExpression if you want only items of type Car
-        table.scan(ScanEnhancedRequest.builder().build()).items().forEach(cars::add);
-        return cars;
-    }*/
-
-
     @Override
     public List<Car> listAllCars() {
         // Create a DynamoDB table object for the Car class, mapping to the "Delegations" table
-        DynamoDbTable<Car> table = enhancedClient.table(tableName, TableSchema.fromBean(Car.class));
+        DynamoDbTable<Car> table = enhancedClient.table(delegationsTableName, TableSchema.fromBean(Car.class));
         // Initialize an empty ArrayList to store the retrieved Car objects
         List<Car> cars = new ArrayList<>();
         // Create a HashMap to store expression values for the filter expression
@@ -87,7 +96,7 @@ public class DelegationRepositoryImpl implements DelegationRepository {
 
     @Override
     public List<Delegation> listAllDelegations() {
-        DynamoDbTable<Delegation> table = enhancedClient.table(tableName, TableSchema.fromBean(Delegation.class));
+        DynamoDbTable<Delegation> table = enhancedClient.table(delegationsTableName, TableSchema.fromBean(Delegation.class));
         List<Delegation> delegations = new ArrayList<>();
         Map<String, AttributeValue> expressionValues = new HashMap<>();
         expressionValues.put(":val", AttributeValue.builder().s("profile").build());
@@ -104,7 +113,9 @@ public class DelegationRepositoryImpl implements DelegationRepository {
 
     @Override
     public <T> List<T> listAllItems(Class<T> clazz) {
-        DynamoDbTable<T> table = enhancedClient.table(tableName, TableSchema.fromBean(clazz));
+        // Usa el nombre de tabla correcto para la clase
+        String actualTableName = getTableNameForClass(clazz);
+        DynamoDbTable<T> table = enhancedClient.table(actualTableName, TableSchema.fromBean(clazz));
         List<T> items = new ArrayList<>();
         table.scan(ScanEnhancedRequest.builder().build()).items().forEach(items::add);
         return items;
