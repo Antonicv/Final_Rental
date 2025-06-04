@@ -15,6 +15,27 @@ export default function ListCars() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  // NUEVO: Estado para el modo vintage, se leerá del <html>
+  const [isVintageMode, setIsVintageMode] = useState(document.documentElement.classList.contains('vintage-mode'));
+
+  // NUEVO: useEffect para escuchar cambios en la clase del <html>
+  useEffect(() => {
+    const htmlElement = document.documentElement;
+    const observer = new MutationObserver(() => {
+      // Actualiza el estado isVintageMode basado en si la clase 'vintage-mode' está presente en <html>
+      setIsVintageMode(htmlElement.classList.contains('vintage-mode'));
+    });
+
+    // Observa cambios en los atributos (específicamente la clase) del elemento <html>
+    observer.observe(htmlElement, { attributes: true, attributeFilter: ['class'] });
+
+    // Realiza una comprobación inicial por si la clase ya está presente al montar el componente
+    setIsVintageMode(htmlElement.classList.contains('vintage-mode'));
+
+    // Función de limpieza para desconectar el observador cuando el componente se desmonte
+    return () => observer.disconnect();
+  }, []); // El array de dependencias vacío asegura que el observador se configure solo una vez
+
   useEffect(() => {
     DelegationEndpoint.getAllCars()
       .then((result) => {
@@ -22,7 +43,8 @@ export default function ListCars() {
           (car): car is Car =>
             !!car &&
             typeof car.delegationId === 'string' &&
-            typeof car.operation === 'string'
+            typeof car.operation === 'string' &&
+            typeof car.year === 'number' // Asegúrate de que 'year' es un número
         );
         setCars(safeCars);
       })
@@ -44,7 +66,8 @@ export default function ListCars() {
       navigate(`/listCars/bookingCar/${idHashBookingCar}`, { state: { car } });
     } catch (error) {
       console.error('Error generating booking hash:', error);
-      alert('Failed to start booking process');
+      // Reemplazado alert() por un mensaje en consola o un modal personalizado si es necesario
+      console.error('Failed to start booking process');
     }
   };
 
@@ -64,9 +87,8 @@ export default function ListCars() {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
-  // Asegúrate de que Car pueda tener .color
-  function isCarWithMakeAndModel(car: Car): car is Car & { make: string; model: string; year?: number; color?: string; price?: number; rented?: boolean; } {
-    return typeof car.make === 'string' && typeof car.model === 'string';
+  function isCarWithMakeAndModel(car: Car): car is Car & { make: string; model: string; year: number; color?: string; price?: number; rented?: boolean; } {
+    return typeof car.make === 'string' && typeof car.model === 'string' && typeof car.year === 'number';
   }
 
   if (loading) {
@@ -87,8 +109,18 @@ export default function ListCars() {
         padding: '2rem'
       }}
     >
+      {/* Ya no necesitamos un botón de toggle aquí, el MainLayout lo maneja */}
+
       {cars
         .filter(isCarWithMakeAndModel)
+        // FILTRO CONDICIONAL BASADO EN isVintageMode
+        .filter(car => {
+          if (isVintageMode) {
+            return car.year < 2000; // Solo coches "vintage" (antes del 2000)
+          } else {
+            return car.year >= 2000; // Solo coches "modernos" (2000 en adelante)
+          }
+        })
         .map(car => (
           <div
             key={`${car.delegationId}-${car.operation}`}
@@ -104,7 +136,6 @@ export default function ListCars() {
               background: '#fff'
             }}
           >
-            {/* CAMBIO PARA INCLUIR EL COLOR */}
             <img
               src={`https://cdn.imagin.studio/getimage?customer=img&make=${encodeURIComponent(car.make)}&modelFamily=${encodeURIComponent(car.model)}&paintId=${encodeURIComponent(car.color || '')}&zoomType=fullscreen`}
               alt={`${car.make} ${car.model}`}

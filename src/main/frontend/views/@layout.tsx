@@ -17,6 +17,8 @@ export default function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isDarkMode, setIsDarkMode] = useState(document.documentElement.hasAttribute('theme'));
+  // NUEVO ESTADO para el modo vintage en MainLayout
+  const [isVintageMode, setIsVintageMode] = useState(document.documentElement.classList.contains('vintage-mode'));
 
   useEffect(() => {
     if (currentTitle) {
@@ -33,8 +35,10 @@ export default function MainLayout() {
     setIsDarkMode(!isDarkMode);
   };
 
+  // Función para alternar el modo vintage
   const toggleVintageMode = () => {
     document.documentElement.classList.toggle('vintage-mode');
+    setIsVintageMode(prevMode => !prevMode); // Actualiza el estado local para el texto del botón
   };
 
   return (
@@ -67,7 +71,7 @@ export default function MainLayout() {
             className="vintage-toggle-btn"
             onClick={toggleVintageMode}
           >
-            Vintage Mode
+            {isVintageMode ? 'Disable Vintage Mode' : 'Activate Vintage Mode'}
           </button>
         </div>
       </div>
@@ -75,6 +79,10 @@ export default function MainLayout() {
       <Suspense>
         <Outlet />
       </Suspense>
+
+      {/* NUEVO: Elemento tv-static para el efecto visual */}
+      {/* Se mostrará/ocultará con CSS basado en la clase 'vintage-mode' en <html> */}
+      <div className="tv-static"></div>
     </AppLayout>
   );
 }
