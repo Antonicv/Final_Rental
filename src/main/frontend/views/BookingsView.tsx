@@ -27,12 +27,21 @@ function isCarWithMakeAndModel(car: Car): car is Car & { make: string; model: st
   return typeof car.make === 'string' && typeof car.model === 'string' && typeof car.year === 'number';
 }
 
-// Función para generar URL de imagen (siempre API externa)
-const getCarThumbnailImageUrl = (car: Car) => {
-  // Siempre usa la API externa para mostrar las imágenes de los coches
-  const imageUrl = `https://cdn.imagin.studio/getimage?customer=img&make=${encodeURIComponent(car.make || '')}&modelFamily=${encodeURIComponent(car.model || '')}&paintId=${encodeURIComponent(car.color || '')}&zoomType=fullscreen`;
-  console.log("DEBUG (BookingsView): Generated external car image URL:", imageUrl);
-  return imageUrl;
+// Función para generar URL de imagen (condicional: local para vintage, externa para moderno)
+const getCarThumbnailImageUrl = (car: Car) => { // isVintageMode ya no es un parámetro para la selección de imagen
+  const isCurrentCarVintage = car.year < 2000; // Determina si el coche es vintage
+
+  if (isCurrentCarVintage) {
+    // Ruta local para coches vintage, siempre
+    const localImagePath = `/images/${sanitizeFilenamePart(car.make || '')}_${sanitizeFilenamePart(car.model || '')}.webp`;
+    console.log("DEBUG (BookingsView): Generated local vintage car image URL:", localImagePath);
+    return localImagePath;
+  } else {
+    // API externa para coches modernos, siempre
+    const imageUrl = `https://cdn.imagin.studio/getimage?customer=img&make=${encodeURIComponent(car.make || '')}&modelFamily=${encodeURIComponent(car.model || '')}&paintId=${encodeURIComponent(car.color || '')}&zoomType=fullscreen`;
+    console.log("DEBUG (BookingsView): Generated external modern car image URL:", imageUrl);
+    return imageUrl;
+  }
 };
 
 // Componente principal de la vista de Reservas
@@ -42,7 +51,7 @@ export default function BookingsView() {
   const [allDelegations, setAllDelegations] = useState<Delegation[]>([]); // Estado para todas las delegaciones
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Mantener isVintageMode para la lógica de precio, aunque no para la imagen
+  // Mantener isVintageMode para la lógica de precio
   const [isVintageMode, setIsVintageMode] = useState(document.documentElement.classList.contains('vintage-mode'));
 
   // useEffect para escuchar cambios en la clase 'vintage-mode' del elemento <html>
@@ -233,7 +242,7 @@ export default function BookingsView() {
                     <div className="flex-1 w-full sm:w-1/3 flex items-center justify-center p-2">
                       {car && isCarWithMakeAndModel(car) ? (
                         <img
-                          src={getCarThumbnailImageUrl(car)}
+                          src={getCarThumbnailImageUrl(car)} // Ya no se pasa isVintageMode aquí
                           alt={`${car.make} ${car.model}`}
                           style={{ width: '100%', height: '300px', objectFit: 'cover', borderRadius: '8px' }}
                           onError={(e) => {
