@@ -10,15 +10,26 @@ export const config: ViewConfig = {
   title: 'Book a car',
 };
 
+// Función de ayuda para normalizar cadenas para nombres de archivo
+// Elimina acentos, diacríticos, reemplaza espacios con guiones bajos y limpia caracteres no permitidos.
+function sanitizeFilenamePart(text: string): string {
+  return text
+    .normalize("NFD") // Normaliza a la forma de descomposición canónica (ej. 'ë' -> 'e' + '¨')
+    .replace(/[\u0300-\u036f]/g, "") // Elimina las marcas diacríticas (acentos, diéresis, etc.)
+    .replace(/\s+/g, '_') // Reemplaza uno o más espacios con un guion bajo
+    .replace(/[^a-zA-Z0-9_.-]/g, ''); // Elimina cualquier carácter que no sea alfanumérico, guion bajo, punto o guion
+}
+
 export default function ListCars() {
   const [cars, setCars] = useState<Car[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // NUEVO: Estado para el modo vintage, se leerá del <html>
+  // Estado para el modo vintage, se leerá del elemento <html>
+  // Esto permite que el componente ListCars reaccione a los cambios del botón en MainLayout.
   const [isVintageMode, setIsVintageMode] = useState(document.documentElement.classList.contains('vintage-mode'));
 
-  // NUEVO: useEffect para escuchar cambios en la clase del <html>
+  // useEffect para escuchar cambios en la clase del elemento <html>
   useEffect(() => {
     const htmlElement = document.documentElement;
     const observer = new MutationObserver(() => {
@@ -36,65 +47,75 @@ export default function ListCars() {
     return () => observer.disconnect();
   }, []); // El array de dependencias vacío asegura que el observador se configure solo una vez
 
+  // useEffect para cargar los datos de los coches desde el backend
   useEffect(() => {
     DelegationEndpoint.getAllCars()
       .then((result) => {
+        // Filtra los resultados para asegurar que son objetos Car válidos
         const safeCars = (result ?? []).filter(
           (car): car is Car =>
             !!car &&
             typeof car.delegationId === 'string' &&
             typeof car.operation === 'string' &&
-            typeof car.year === 'number' // Asegúrate de que 'year' es un número
+            typeof car.year === 'number' // Asegúrate de que 'year' es un número para el filtrado
         );
         setCars(safeCars);
       })
       .catch((error) => {
         console.error('Failed to fetch cars:', error);
-        setCars([]);
+        setCars([]); // En caso de error, la lista de coches estará vacía
       })
-      .finally(() => setLoading(false));
+      .finally(() => setLoading(false)); // Finaliza el estado de carga
   }, []);
 
+  // Manejador para el botón "BOOK"
   const handleBook = async (car: Car) => {
-    const userId = "USER#001";
+    const userId = "USER#001"; // ID de usuario fijo para el ejemplo
     try {
+      // Genera un hash para la reserva usando los datos del coche y el ID de usuario
       const idHashBookingCar = await generateBookingHash({
         make: car.make ?? '',
         model: car.model ?? '',
         userId
       });
+      // Navega a la página de reserva, pasando los datos del coche en el estado
       navigate(`/listCars/bookingCar/${idHashBookingCar}`, { state: { car } });
     } catch (error) {
       console.error('Error generating booking hash:', error);
-      // Reemplazado alert() por un mensaje en consola o un modal personalizado si es necesario
+      // Mensaje de error en consola en lugar de alert()
       console.error('Failed to start booking process');
     }
   };
 
+  // Función para generar un hash de reserva
   async function generateBookingHash(data: {
     make: string;
     model: string;
     userId: string;
   }): Promise<string> {
     const encoder = new TextEncoder();
-    const dateString = new Date().toISOString().split('T')[0];
-    const stringToHash = `${data.make}-${data.model}-${dateString}-${data.userId}`;
+    const dateString = new Date().toISOString().split('T')[0]; // Obtiene la fecha actual en formato YYYY-MM-DD
+    const stringToHash = `${data.make}-${data.model}-${dateString}-${data.userId}`; // Cadena a hashear
     const hashBuffer = await crypto.subtle.digest(
-      'SHA-256',
-      encoder.encode(stringToHash)
+      'SHA-256', // Algoritmo de hash SHA-256
+      encoder.encode(stringToHash) // Codifica la cadena a Uint8Array
     );
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashArray = Array.from(new Uint8Array(hashBuffer)); // Convierte el buffer a un array de bytes
+    // Convierte cada byte a su representación hexadecimal y asegura dos dígitos
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
+  // Función de guarda de tipo para asegurar que el objeto Car tiene propiedades 'make', 'model' y 'year'
   function isCarWithMakeAndModel(car: Car): car is Car & { make: string; model: string; year: number; color?: string; price?: number; rented?: boolean; } {
     return typeof car.make === 'string' && typeof car.model === 'string' && typeof car.year === 'number';
   }
 
+  // Muestra un mensaje de carga mientras se obtienen los datos
   if (loading) {
     return <div>Loading cars...</div>;
   }
 
+  // Muestra un mensaje si no hay coches disponibles
   if (cars.length === 0) {
     return <div>No cars available.</div>;
   }
@@ -109,21 +130,21 @@ export default function ListCars() {
         padding: '2rem'
       }}
     >
-      {/* Ya no necesitamos un botón de toggle aquí, el MainLayout lo maneja */}
+      {/* El botón de toggle de modo vintage se encuentra en MainLayout */}
 
       {cars
-        .filter(isCarWithMakeAndModel)
-        // FILTRO CONDICIONAL BASADO EN isVintageMode
+        .filter(isCarWithMakeAndModel) // Filtra coches con make, model y year válidos
+        // Filtro condicional para mostrar coches "vintage" o "modernos"
         .filter(car => {
           if (isVintageMode) {
-            return car.year < 2000; // Solo coches "vintage" (antes del 2000)
+            return car.year < 2000; // Solo coches "vintage" (años anteriores al 2000)
           } else {
-            return car.year >= 2000; // Solo coches "modernos" (2000 en adelante)
+            return car.year >= 2000; // Solo coches "modernos" (años 2000 en adelante)
           }
         })
         .map(car => (
           <div
-            key={`${car.delegationId}-${car.operation}`}
+            key={`${car.delegationId}-${car.operation}`} // Clave única para cada tarjeta de coche
             style={{
               border: '1px solid #ddd',
               borderRadius: '12px',
@@ -136,9 +157,13 @@ export default function ListCars() {
               background: '#fff'
             }}
           >
+            {/* Lógica condicional para la URL de la imagen (API externa o local) */}
             <img
-              src={`https://cdn.imagin.studio/getimage?customer=img&make=${encodeURIComponent(car.make)}&modelFamily=${encodeURIComponent(car.model)}&paintId=${encodeURIComponent(car.color || '')}&zoomType=fullscreen`}
-              alt={`${car.make} ${car.model}`}
+              src={isVintageMode
+                ? `/images/${sanitizeFilenamePart(car.make)}_${sanitizeFilenamePart(car.model)}.webp` // Ruta local para coches vintage
+                : `https://cdn.imagin.studio/getimage?customer=img&make=${encodeURIComponent(car.make)}&modelFamily=${encodeURIComponent(car.model)}&paintId=${encodeURIComponent(car.color || '')}&zoomType=fullscreen` // API externa para coches modernos
+              }
+              alt={`${car.make} ${car.model}`} // Texto alternativo para la imagen
               style={{
                 width: '100%',
                 height: '180px',
@@ -147,6 +172,7 @@ export default function ListCars() {
                 marginBottom: '1rem'
               }}
               onError={(e) => {
+                // Fallback para imágenes no encontradas (muestra un placeholder)
                 (e.target as HTMLImageElement).src = 'https://placehold.co/300x180?text=Car+Not+Found';
               }}
             />
