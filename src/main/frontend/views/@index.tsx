@@ -177,7 +177,7 @@ export default function HomeView() {
 
   // Manejador para navegar a la página de reservas
   const handleViewAllBookings = () => {
-    navigate('/BookingsView'); // Navega a la nueva ruta /BookingsView (nombre del archivo)
+    navigate('/my-bookings'); // Navega a la nueva ruta /my-bookings
   };
 
   // Función para generar URL de imagen de placeholder o API externa

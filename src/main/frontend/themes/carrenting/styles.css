@@ -1,17 +1,22 @@
+/* Importar fuentes de Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Old+Standard+TT&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+
+/* ------------------ TEMA CORPORATIVO/MODERNO (POR DEFECTO/LIGHT) ------------------ */
 html {
-  --lumo-font-family: 'Inter', sans-serif;
-  /* Paleta base del modo claro (por defecto) */
-  --lumo-base-color: #f2ead4;
-  --lumo-body-text-color: #4a4a4a;
-  --lumo-header-text-color: #333333;
-  --lumo-primary-color: #32536a;
-  --lumo-primary-text-color: #ffffff;
-  --lumo-accent-color: #bfae82;
-  --lumo-accent-hover-color: #a8925c;
-  --lumo-contrast-color: rgba(0, 0, 0, 0.1);
+  --lumo-font-family: 'Inter', sans-serif; /* Fuente moderna por defecto */
+  /* Paleta corporativa/moderna */
+  --lumo-base-color: #f0f2f5; /* Fondo muy claro, ligeramente azulado */
+  --lumo-body-text-color: #333333; /* Texto oscuro */
+  --lumo-header-text-color: #1a2a3a; /* Encabezados muy oscuros (azul marino) */
+  --lumo-primary-color: #2a628f; /* Azul corporativo fuerte */
+  --lumo-primary-text-color: #ffffff; /* Texto blanco para botones principales */
+  --lumo-accent-color: #5bb7e2; /* Azul cielo para acentos */
+  --lumo-accent-hover-color: #2a628f; /* Azul corporativo para hover de acento */
+  --lumo-contrast-color: rgba(0, 0, 0, 0.08); /* Ligeras líneas de contraste */
   --lumo-contrast-50pct: var(--lumo-primary-color);
   --lumo-contrast-60pct: var(--lumo-primary-color);
-  --lumo-primary-text-color: var(--lumo-primary-color);
 }
 
 body {
@@ -35,7 +40,7 @@ a {
 }
 a:hover {
   text-decoration: underline;
-  color: #244256;
+  color: var(--lumo-accent-hover-color); /* Usar el color de hover del acento */
 }
 
 .logo-container {
@@ -94,14 +99,14 @@ vaadin-drawer-toggle:hover {
   border-radius: var(--lumo-border-radius-m, 0.5rem);
   border: none;
   background: var(--lumo-accent-color);
-  color: var(--lumo-body-text-color);
+  color: var(--lumo-body-text-color); /* Color de texto para el botón de tema */
   cursor: pointer;
   font-weight: bold;
   transition: background 0.2s, color 0.2s;
 }
 .theme-toggle-btn:hover {
   background: var(--lumo-accent-hover-color);
-  color: var(--lumo-primary-text-color);
+  color: var(--lumo-primary-text-color); /* El texto se vuelve blanco al hacer hover */
 }
 
 .vintage-toggle-btn {
@@ -110,72 +115,71 @@ vaadin-drawer-toggle:hover {
   border-radius: var(--lumo-border-radius-m, 0.5rem);
   border: none;
   background: var(--lumo-accent-color);
-  color: var(--lumo-body-text-color);
+  color: var(--lumo-body-text-color); /* Color de texto para el botón vintage */
   cursor: pointer;
   font-weight: bold;
   transition: background 0.2s, color 0.2s;
 }
 .vintage-toggle-btn:hover {
   background: var(--lumo-accent-hover-color);
+  color: var(--lumo-primary-text-color); /* El texto se vuelve blanco al hacer hover */
 }
 
-/* ------------------ MODO OSCURO ------------------ */
+
+/* ------------------ MODO OSCURO (Moderno y Sobrio) ------------------ */
 html[theme~="dark"] {
-  --lumo-base-color: #000000;
-  --lumo-body-text-color: #e0e0e0;
-  --lumo-header-text-color: #f0f0f0;
-  --lumo-primary-color: #dcc08a;
-  --lumo-primary-text-color: #1a1a1a;
-  --lumo-accent-color: #bfae82;
-  --lumo-accent-hover-color: #a8925c;
-  --lumo-contrast-color: rgba(255, 255, 255, 0.1);
+  --lumo-base-color: #1a1a2e; /* Azul oscuro muy profundo, casi negro */
+  --lumo-body-text-color: #e0e0e0; /* Gris claro para el texto principal */
+  --lumo-header-text-color: #f0f0f0; /* Blanco puro para los encabezados */
+  --lumo-primary-color: #5c6bc0; /* Un azul medio, sobrio */
+  --lumo-primary-text-color: #ffffff; /* Texto blanco sobre botones primarios */
+  --lumo-accent-color: #8c9eff; /* Un azul más claro para acentos */
+  --lumo-accent-hover-color: #5c6bc0; /* Azul primario para hover de acento */
+  --lumo-contrast-color: rgba(255, 255, 255, 0.15); /* Contraste sutil en blanco */
   --lumo-contrast-50pct: var(--lumo-primary-color);
   --lumo-contrast-60pct: var(--lumo-primary-color);
-  --lumo-primary-text-color: var(--lumo-primary-color);
   background-color: var(--lumo-base-color);
   color: var(--lumo-body-text-color);
 }
 
 html[theme~="dark"] body {
-  background-color: #000000 !important;
+  background-color: var(--lumo-base-color) !important;
   color: var(--lumo-body-text-color);
 }
 html[theme~="dark"] .navbar-custom {
-  background-color: #000000 !important;
+  background-color: var(--lumo-base-color) !important;
 }
 html[theme~="dark"] vaadin-drawer-layout::part(drawer) {
-    background-color: #000000 !important;
+    background-color: var(--lumo-base-color) !important;
 }
 html[theme~="dark"] .flex.flex-col.justify-between.h-full.p-m {
-    background-color: #000000 !important;
+    background-color: var(--lumo-base-color) !important;
 }
-html[theme~="dark"] h1 {
-    color: #bfae82;
-}
+html[theme~="dark"] h1,
 html[theme~="dark"] h2,
 html[theme~="dark"] h3,
 html[theme~="dark"] h4,
 html[theme~="dark"] h5,
 html[theme~="dark"] h6 {
-  color: #bfae82;
+    color: var(--lumo-header-text-color);
 }
 html[theme~="dark"] a {
-  color: var(--lumo-primary-color);
+  color: var(--lumo-accent-color); /* Los enlaces usarán el color de acento para mayor visibilidad */
 }
 html[theme~="dark"] a:hover {
   color: var(--lumo-accent-hover-color);
 }
 html[theme~="dark"] .navbar-title {
-    color: #bfae82;
+    color: var(--lumo-header-text-color);
 }
 html[theme~="dark"] span.font-semibold.text-l {
-    color: #bfae82;
+    color: var(--lumo-header-text-color);
 }
 html[theme~="dark"] vaadin-side-nav-item {
-    color: #bfae82;
+    color: var(--lumo-body-text-color); /* Mantener legible sobre fondo oscuro */
 }
 html[theme~="dark"] vaadin-drawer-toggle {
-    color: #bfae82;
+    color: var(--lumo-primary-color);
 }
 html[theme~="dark"] vaadin-drawer-toggle:hover {
     color: var(--lumo-accent-hover-color);
@@ -183,9 +187,22 @@ html[theme~="dark"] vaadin-drawer-toggle:hover {
 
 /* ------------------ MODO VINTAGE ------------------ */
 
-/* Aplica el filtro vintage SOLO cuando la clase está en <html> */
+/* Aplica el filtro vintage y los colores del tema claro ORIGINAL */
 html.vintage-mode {
+  --lumo-font-family: 'Old Standard TT', serif !important; /* Fuente anticuada */
   filter: grayscale(0.65) sepia(0.8) contrast(1.25) brightness(0.95) hue-rotate(-10deg) !important;
+
+  /* Colores del modo claro anterior (ahora para vintage) */
+  --lumo-base-color: #f2ead4 !important;
+  --lumo-body-text-color: #4a4a4a !important;
+  --lumo-header-text-color: #333333 !important;
+  --lumo-primary-color: #32536a !important;
+  --lumo-primary-text-color: #ffffff !important;
+  --lumo-accent-color: #bfae82 !important;
+  --lumo-accent-hover-color: #a8925c !important;
+  --lumo-contrast-color: rgba(0, 0, 0, 0.1) !important;
+  --lumo-contrast-50pct: var(--lumo-primary-color) !important;
+  --lumo-contrast-60pct: var(--lumo-primary-color) !important;
 }
 
 /* Si por alguna razón la clase se aplica en <body>, también lo soportamos */
