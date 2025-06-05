@@ -11,7 +11,7 @@ html {
   --lumo-body-text-color: #333333; /* Texto oscuro */
   --lumo-header-text-color: #1a2a3a; /* Encabezados muy oscuros (azul marino) */
   --lumo-primary-color: #2a628f; /* Azul corporativo fuerte */
-  --lumo-primary-text-color: #ffffff; /* Texto blanco para botones principales */
+  --lumo-primary-text-color: #413f3f; /* Texto blanco para botones principales */
   --lumo-accent-color: #5bb7e2; /* Azul cielo para acentos */
   --lumo-accent-hover-color: #2a628f; /* Azul corporativo para hover de acento */
   --lumo-contrast-color: rgba(0, 0, 0, 0.08); /* Ligeras líneas de contraste */
@@ -132,7 +132,7 @@ html[theme~="dark"] {
   --lumo-body-text-color: #e0e0e0; /* Gris claro para el texto principal */
   --lumo-header-text-color: #f0f0f0; /* Blanco puro para los encabezados */
   --lumo-primary-color: #5c6bc0; /* Un azul medio, sobrio */
-  --lumo-primary-text-color: #ffffff; /* Texto blanco sobre botones primarios */
+  --lumo-primary-text-color: #504d4d; /* Texto blanco sobre botones primarios */
   --lumo-accent-color: #8c9eff; /* Un azul más claro para acentos */
   --lumo-accent-hover-color: #5c6bc0; /* Azul primario para hover de acento */
   --lumo-contrast-color: rgba(255, 255, 255, 0.15); /* Contraste sutil en blanco */

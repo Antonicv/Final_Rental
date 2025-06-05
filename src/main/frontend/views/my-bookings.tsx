@@ -1,16 +1,18 @@
 import { ViewConfig } from '@vaadin/hilla-file-router/types.js';
 import { useEffect, useState } from 'react';
+import { Button } from '@vaadin/react-components/Button'; // Importar Button para las acciones
+import { TextField } from '@vaadin/react-components/TextField'; // Importar TextField para el filtro
 import { DelegationEndpoint } from 'Frontend/generated/endpoints';
 import Booking from 'Frontend/generated/dev/renting/delegations/Booking';
 import Car from 'Frontend/generated/dev/renting/delegations/Car'; // Importar Car para tipado
 import Delegation from 'Frontend/generated/dev/renting/delegations/Delegation'; // Importar Delegation para tipado
-import { Button } from '@vaadin/react-components/Button'; // Importar Button para las acciones
 
 
 // Configuración de la vista para el router de Hilla
 export const config: ViewConfig = {
   title: 'Mis Reservas', // Mantén el título
 };
+
 // Función de ayuda para normalizar cadenas para nombres de archivo
 // Elimina acentos, diacríticos, reemplaza espacios con guiones bajos y limpia caracteres no permitidos.
 function sanitizeFilenamePart(text: string): string {
@@ -27,7 +29,7 @@ function isCarWithMakeAndModel(car: Car): car is Car & { make: string; model: st
 }
 
 // Función para generar URL de imagen (condicional: local para vintage, externa para moderno)
-const getCarThumbnailImageUrl = (car: Car) => { // isVintageMode ya no es un parámetro para la selección de imagen
+const getCarThumbnailImageUrl = (car: Car) => {
   const isCurrentCarVintage = car.year < 2000; // Determina si el coche es vintage
 
   if (isCurrentCarVintage) {
@@ -46,12 +48,16 @@ const getCarThumbnailImageUrl = (car: Car) => { // isVintageMode ya no es un par
 // Componente principal de la vista de Reservas
 export default function BookingsView() {
   const [allBookings, setAllBookings] = useState<Booking[]>([]);
+  const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]); // Nuevo estado para reservas filtradas
   const [allCars, setAllCars] = useState<Car[]>([]); // Estado para todos los coches
   const [allDelegations, setAllDelegations] = useState<Delegation[]>([]); // Estado para todas las delegaciones
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Mantener isVintageMode para la lógica de precio
   const [isVintageMode, setIsVintageMode] = useState(document.documentElement.classList.contains('vintage-mode'));
+  // Nuevo estado para el filtro de usuario
+  const [filterUserId, setFilterUserId] = useState<string>('');
+
 
   // useEffect para escuchar cambios en la clase 'vintage-mode' del elemento <html>
   useEffect(() => {
@@ -65,7 +71,8 @@ export default function BookingsView() {
   }, []);
 
   // Función para cargar todos los datos (reservas, coches, delegaciones)
-  const fetchAllData = async () => {
+  // Ahora acepta un userId para filtrar
+  const fetchAllData = async (userIdToFilter: string | null = null) => {
     console.log("DEBUG (BookingsView): Iniciando la carga de todos los datos...");
     try {
       setLoading(true);
@@ -87,15 +94,24 @@ export default function BookingsView() {
         console.log(`DEBUG (BookingsView): Delegación cargada: ID=${d.delegationId}, Nombre=${d.name}, Ciudad=${d.city}, Dirección=${d.adress}, Gestor=${d.manager}, Teléfono=${d.telf}, Lat=${d.lat}, Long=${d.longVal}, CantidadCoches=${d.carQuantity}`);
       });
 
-
       // 3. Cargar todas las reservas
       const bookingsResult = await DelegationEndpoint.getAllBookings();
       const validBookings = Array.isArray(bookingsResult) ? bookingsResult : [];
-      setAllBookings(validBookings);
+      setAllBookings(validBookings); // Almacena todas las reservas
       console.log(`DEBUG (BookingsView): Se cargaron ${validBookings.length} reservas.`);
 
-      if (validBookings.length === 0) {
-        setError('No hay reservas registradas.');
+      // Aplicar filtro si userIdToFilter está presente
+      const currentFilteredBookings = userIdToFilter
+        ? validBookings.filter(booking => booking.userId === userIdToFilter)
+        : validBookings;
+      setFilteredBookings(currentFilteredBookings); // Actualiza las reservas filtradas
+
+      if (currentFilteredBookings.length === 0) {
+        if (userIdToFilter) {
+            setError(`No hay reservas para el usuario "${userIdToFilter}".`);
+        } else {
+            setError('No hay reservas registradas.');
+        }
         console.log("DEBUG (BookingsView): No se encontraron reservas.");
       } else {
         setError(null);
@@ -104,6 +120,7 @@ export default function BookingsView() {
       console.error('ERROR (BookingsView): Error al obtener todos los datos:', e);
       setError('Hubo un error al cargar tus reservas. Por favor, inténtalo de nuevo más tarde.');
       setAllBookings([]);
+      setFilteredBookings([]);
       setAllCars([]);
       setAllDelegations([]);
     } finally {
@@ -112,10 +129,21 @@ export default function BookingsView() {
     }
   };
 
-  // useEffect para cargar los datos al montar el componente
+  // useEffect para cargar los datos al montar el componente (sin filtro inicial)
   useEffect(() => {
     fetchAllData();
   }, []); // Dependencias vacías para que se ejecute solo al montar
+
+  // Manejador para el botón de filtro por usuario
+  const handleFilterByUser = () => {
+    fetchAllData(filterUserId);
+  };
+
+  // Manejador para el botón de mostrar todas las reservas
+  const handleShowAllBookings = () => {
+    setFilterUserId(''); // Limpiar el campo de filtro
+    fetchAllData(null); // Mostrar todas las reservas
+  };
 
   // Función para obtener los detalles del coche a partir de su carId (operation)
   const getCarDetails = (carId: string) => {
@@ -147,8 +175,8 @@ export default function BookingsView() {
         // Llama al endpoint de borrado en el backend
         await DelegationEndpoint.deleteBooking(booking.carId, booking.startDate);
         setError(`Reserva ${booking.bookingId} borrada con éxito.`);
-        // Recargar todas las reservas para actualizar la lista
-        await fetchAllData();
+        // Recargar todas las reservas para actualizar la lista, aplicando el filtro si existe
+        await fetchAllData(filterUserId || null);
       } catch (e) {
         console.error('ERROR (BookingsView): Error al borrar la reserva:', e);
         setError('Hubo un error al borrar la reserva. Por favor, inténtalo de nuevo.');
@@ -171,6 +199,22 @@ export default function BookingsView() {
     <div className="flex flex-col h-full items-center p-l text-center box-border">
       <h2 className="text-2xl font-bold mb-4">Mis Reservas</h2>
 
+      {/* Sección de filtro por usuario */}
+      <div className="flex gap-2 mb-4 items-end">
+        <TextField
+          label="Filtrar por ID de Usuario"
+          placeholder="Ej: USER#001"
+          value={filterUserId}
+          onValueChanged={({ detail }) => setFilterUserId(detail.value)}
+        />
+        <Button theme="primary" onClick={handleFilterByUser}>
+          Filtrar
+        </Button>
+        <Button theme="tertiary" onClick={handleShowAllBookings}>
+          Mostrar Todas
+        </Button>
+      </div>
+
       {loading && (
         <p className="text-gray-600">Cargando reservas...</p>
       )}
@@ -179,14 +223,14 @@ export default function BookingsView() {
         <div className="text-red-600 font-bold mt-4">{error}</div>
       )}
 
-      {!loading && !error && allBookings.length === 0 && (
-        <p className="text-gray-600 mt-4">No tienes reservas registradas.</p>
+      {!loading && !error && filteredBookings.length === 0 && ( // Usar filteredBookings
+        <p className="text-gray-600 mt-4">No tienes reservas registradas {filterUserId ? `para el usuario "${filterUserId}"` : ''}.</p>
       )}
 
-      {!loading && !error && allBookings.length > 0 && (
+      {!loading && !error && filteredBookings.length > 0 && ( // Usar filteredBookings
         <div className="w-full max-w-2xl text-left">
           <ul className="list-none p-0">
-            {allBookings.map(booking => {
+            {filteredBookings.map(booking => { // Iterar sobre filteredBookings
               const car = getCarDetails(booking.carId || '');
               const delegation = getDelegationDetails(booking.delegationId || '');
               const isCurrentCarVintage = car ? car.year < 2000 : false; // Necesario para la conversión de precio
@@ -207,7 +251,6 @@ export default function BookingsView() {
                   } else if (duration > 0) {
                     duration = duration + 1; // Sumar 1 para incluir el día de inicio
                   }
-
 
                   if (duration > 0) {
                     const calculatedPrice = car.price * duration;
@@ -312,13 +355,6 @@ export default function BookingsView() {
                           <p className="text-gray-700">
                             <span className="font-medium">Teléfono:</span> {delegation.telf || 'N/A'}
                           </p>
-                          {/* Puedes añadir lat, long, carQuantity aquí si lo deseas */}
-                          {/* <p className="text-gray-700">
-                            <span className="font-medium">Lat/Long:</span> {delegation.lat || 'N/A'}/{delegation.longVal || 'N/A'}
-                          </p>
-                          <p className="text-gray-700">
-                            <span className="font-medium">Coches en Delegación:</span> {delegation.carQuantity || 'N/A'}
-                          </p> */}
                         </>
                       ) : (
                         <p className="text-gray-700"><span className="font-medium">Delegación:</span> Detalles no disponibles</p>
@@ -338,6 +374,7 @@ export default function BookingsView() {
               );
             })}
           </ul>
+
         </div>
       )}
     </div>

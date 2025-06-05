@@ -228,27 +228,28 @@ export default function HomeView() {
         </h3>
       )}
 
-      {/* Botón para abrir el diálogo del calendario */}
-      <Button
-        theme="primary"
-        onClick={() => {
-          setIsCalendarOpen(true);
-          setSearchMessage(null); // Limpia mensajes de búsqueda anteriores
-          setAvailableCarsResult(null); // Limpia resultados anteriores
-        }}
-        style={{ marginTop: '2rem' }}
-      >
-        Ver Disponibilidad
-      </Button>
+      {/* Contenedor para los botones "Ver Disponibilidad" y "Ver Todas las Reservas" */}
+      <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', justifyContent: 'center' }}>
+        {/* Botón para abrir el diálogo del calendario */}
+        <Button
+          theme="primary"
+          onClick={() => {
+            setIsCalendarOpen(true);
+            setSearchMessage(null); // Limpia mensajes de búsqueda anteriores
+            setAvailableCarsResult(null); // Limpia resultados anteriores
+          }}
+        >
+          Ver Disponibilidad
+        </Button>
 
-      {/* NUEVO BOTÓN: Ver Todas las Reservas (ahora navega a una nueva página) */}
-      <Button
-        theme="secondary"
-        onClick={handleViewAllBookings} // Llama a la función de navegación
-        style={{ marginTop: '1rem' }}
-      >
-        Ver Todas las Reservas
-      </Button>
+        {/* Botón: Ver Todas las Reservas */}
+        <Button
+          theme="primary" // Cambiado a primary para el mismo estilo
+          onClick={handleViewAllBookings} // Llama a la función de navegación
+        >
+          Ver Todas las Reservas
+        </Button>
+      </div>
 
       {/* Mensaje de búsqueda (errores/advertencias) - se muestra aquí si los diálogos no están abiertos */}
       {searchMessage && !isResultsDialogOpen && (
