@@ -1,6 +1,6 @@
-// UserRepositoryImpl.java
 package dev.renting.users;
 
+import dev.renting.delegations.Booking; // Importar la clase Booking consolidada
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
@@ -8,65 +8,98 @@ import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
+import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue; // Importar para QueryEnhancedRequest
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Repository
 public class UserRepositoryImpl implements UserRepository {
 
     private final DynamoDbEnhancedClient enhancedClient;
-    private final String tableName = "Users";
+
+    // Nombres de las tablas
+    private final String USERS_TABLE_NAME = "Users";
+    private final String BOOKINGS_TABLE_NAME = "Bookings";
+    private final String USER_ID_GSI_NAME = "UserIdIndex"; // Nombre del GSI en la tabla Bookings
 
     @Autowired
     public UserRepositoryImpl(DynamoDbEnhancedClient enhancedClient) {
         this.enhancedClient = enhancedClient;
     }
 
+    // Helper para obtener la tabla de Users
+    private DynamoDbTable<User> getUsersTable() {
+        return enhancedClient.table(USERS_TABLE_NAME, TableSchema.fromBean(User.class));
+    }
+
+    // Helper para obtener la tabla de Bookings
+    private DynamoDbTable<Booking> getBookingsTable() {
+        return enhancedClient.table(BOOKINGS_TABLE_NAME, TableSchema.fromBean(Booking.class));
+    }
 
     @Override
-    public <T> void save(T item) {
-        DynamoDbTable<T> table =
-                enhancedClient.table(
-                        tableName,
-                        TableSchema.fromBean((Class<T>) item.getClass()));
-        table.putItem(item);
+    public void save(User user) {
+        getUsersTable().putItem(user);
+        System.out.println("DEBUG (UserRepositoryImpl): User saved: " + user.getUserId());
+    }
+
+    @Override
+    public Optional<User> get(String userId, String operation) {
+        Key key = Key.builder()
+                .partitionValue(userId)
+                .sortValue(operation)
+                .build();
+        User user = getUsersTable().getItem(key);
+        System.out.println("DEBUG (UserRepositoryImpl): User retrieved: " + (user != null ? user.getUserId() : "null"));
+        return Optional.ofNullable(user);
+    }
+
+    @Override
+    public List<User> listAllUsers() {
+        // Para listar todos los usuarios (requiere Scan), ten cuidado en producción con tablas grandes
+        System.out.println("DEBUG (UserRepositoryImpl): Listing all users (SCAN operation).");
+        return getUsersTable().scan().items().stream().collect(Collectors.toList());
+    }
+
+    @Override
+    public void delete(String userId, String operation) {
+        Key key = Key.builder()
+                .partitionValue(userId)
+                .sortValue(operation)
+                .build();
+        getUsersTable().deleteItem(key);
+        System.out.println("DEBUG (UserRepositoryImpl): User deleted: " + userId + " with operation: " + operation);
     }
 
     @Override
     public List<Booking> findBookingsByUserId(String userId) {
-        // This client creates a reference to our DynamoDB table
-        // telling the SDK to map table items to our Booking Java class
-        // it uses the value of enhancedClient
-        DynamoDbTable<Booking> table = enhancedClient.table(tableName, TableSchema.fromBean(Booking.class));
+        // Usar el GSI "UserIdIndex" en la tabla "Bookings"
+        DynamoDbTable<Booking> bookingsTable = getBookingsTable();
 
-        // Assuming ''Booking'' has a partition key named "userId"
-        // empty list where we will collect all the bookings found for the user.
+        // Construir la QueryConditional para el GSI
+        QueryConditional queryConditional = QueryConditional.keyEqualTo(
+            Key.builder().partitionValue(userId).build()
+        );
+
+        System.out.println("DEBUG (UserRepositoryImpl): Querying bookings for userId: " + userId + " using GSI: " + USER_ID_GSI_NAME);
+
+        // Realizar la consulta al GSI
+        // La consulta debe especificar el índice a usar
+        Iterator<Booking> results = bookingsTable.index(USER_ID_GSI_NAME) // Especifica el GSI
+                .query(QueryEnhancedRequest.builder()
+                        .queryConditional(queryConditional)
+                        .build())
+                .items().iterator();
+
         List<Booking> bookings = new ArrayList<>();
-
-        // Query for items where the partition key equals userId and the sort key begins with "booking"
-        // QueryConditional.keyEqualTo(...): Tells DynamoDB to return all items
-        // where the partition key (here, userId) equals the value you provided.
-        Iterator<Booking> results = table.query(
-                r -> r.queryConditional(
-                        QueryConditional.sortBeginsWith(
-                                Key.builder()
-                                        .partitionValue(userId)
-                                        .sortValue("booking")
-                                        .build()
-                        )
-                )
-        ).items().iterator();
-        // .items().iterator(): Gets an iterator over the query results.
-        // Each item is mapped to a Booking object.
-
-        // Loop over the query results and add them to the 'bookings' list
-        // with the method reference: bookings::add
         results.forEachRemaining(bookings::add);
+
+        System.out.println("DEBUG (UserRepositoryImpl): Found " + bookings.size() + " bookings for userId: " + userId);
         return bookings;
     }
-
-
-
 }
