@@ -47,7 +47,7 @@
             <version>${aws.sdk.version}</version>
         </dependency>
         <dependency>
-            <groupId>software.amazon.awssdk</groupId>
+            <groupId>software.amazon.awssdk</
             <artifactId>s3</artifactId>
             <version>${aws.sdk.version}</version>
         </dependency>
@@ -133,6 +133,10 @@
                         </goals>
                     </execution>
                 </executions>
+                <configuration>
+                    <!-- ¡NUEVA CONFIGURACIÓN! Indica explícitamente dónde están los archivos fuente del frontend -->
+                    <frontendDirectory>${project.basedir}/src/main/frontend</frontendDirectory>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>com.diffplug.spotless</groupId>
