@@ -59,7 +59,7 @@ export default function MainLayout() { // Este componente será renombrado a @la
     { to: '/book-a-car', title: 'Buscar Coches / Reservar', icon: 'line-awesome/svg/car-solid.svg' },
     { to: '/my-bookings', title: 'Mis Reservas', icon: 'line-awesome/svg/calendar-check-solid.svg' },
     { to: '/locations', title: 'Delegaciones / Ubicaciones', icon: 'line-awesome/svg/map-marker-alt-solid.svg' },
-    { to: '/leisure-activities', title: 'Actividades de Ocio', icon: 'line-awesome/svg/gamepad-solid.svg' },
+  
 
     // --- Páginas de Administración (Agrupadas) ---
     { to: '/admin/dashboard', title: 'Panel de Administración', icon: 'line-awesome/svg/tachometer-alt-solid.svg' },
