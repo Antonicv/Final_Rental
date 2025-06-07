@@ -3,13 +3,11 @@ package dev.renting.delegations;
 import com.vaadin.flow.server.auth.AnonymousAllowed;
 import com.vaadin.hilla.Endpoint;
 import org.springframework.beans.factory.annotation.Autowired;
-import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException; // Importar para manejar errores de parseo de fecha
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -24,48 +22,123 @@ public class DelegationEndpoint {
         this.delegationRepository = delegationRepository;
     }
 
-    // Save Delegation
+    // Save Delegation (Create/Update)
     public void saveDelegation(Delegation delegation) {
+        if (delegation.getDelegationId() == null || delegation.getDelegationId().isEmpty()) {
+            delegation.setDelegationId(UUID.randomUUID().toString());
+        }
+        if (delegation.getOperation() == null || delegation.getOperation().isEmpty()) {
+            delegation.setOperation("profile");
+        }
         delegationRepository.save(delegation);
     }
 
-    // Save Car
+    // Save Car (Create/Update)
     public void saveCar(Car car) {
+        if (car.getDelegationId() == null || car.getDelegationId().isEmpty()) {
+            System.err.println("ERROR: No se puede guardar el coche, falta el ID de la delegación.");
+            throw new IllegalArgumentException("Se requiere el ID de la delegación para guardar un coche.");
+        }
+        if (car.getOperation() == null || car.getOperation().isEmpty()) {
+            car.setOperation("car#" + UUID.randomUUID().toString());
+            System.out.println("DEBUG: Se generó una nueva operación (ID único) para el coche: " + car.getOperation());
+        }
         delegationRepository.save(car);
     }
 
     /**
-     * Saves a new booking. Generates a bookingId and sets the bookingDate if not provided.
-     * Assumes the repository can save Booking objects.
-     * @param booking The Booking object to save.
+     * Guarda una nueva reserva. Genera un bookingId y establece la bookingDate si no se proporcionan.
+     * @param booking El objeto Booking a guardar.
      */
     public void saveBooking(Booking booking) {
-        System.out.println("DEBUG: saveBooking called for carId: " + booking.getCarId());
-        // Generate a bookingId if it doesn't have one
+        System.out.println("DEBUG: saveBooking llamado para carId: " + booking.getCarId());
         if (booking.getBookingId() == null || booking.getBookingId().isEmpty()) {
             booking.setBookingId("BOOKING#" + UUID.randomUUID().toString());
         }
-        // Assign the current booking date
         booking.setBookingDate(LocalDate.now().toString());
-        delegationRepository.save(booking); // Assuming the repository can save Bookings
-        System.out.println("DEBUG: Booking saved successfully.");
+        delegationRepository.save(booking);
+        System.out.println("DEBUG: Reserva guardada con éxito.");
     }
 
     /**
-     * Deletes a booking from the Bookings table.
-     * Requires carId and startDate as they form the primary key.
-     * @param carId The carId of the booking to delete.
-     * @param startDate The startDate of the booking to delete.
+     * Elimina una reserva de la tabla Bookings.
+     * Requiere carId y startDate ya que forman la clave primaria.
+     * @param carId El carId de la reserva a eliminar.
+     * @param startDate La startDate de la reserva a eliminar.
      */
     public void deleteBooking(String carId, String startDate) {
-        System.out.println("DEBUG: deleteBooking called for carId: " + carId + " and startDate: " + startDate);
-        // Create a dummy Booking object with just the primary key for deletion
+        System.out.println("DEBUG: deleteBooking llamado para carId: " + carId + " y startDate: " + startDate);
         Booking bookingToDelete = new Booking();
         bookingToDelete.setCarId(carId);
         bookingToDelete.setStartDate(startDate);
-        delegationRepository.delete(bookingToDelete); // Assuming the repository can delete Booking objects
-        System.out.println("DEBUG: Booking deleted successfully.");
+        delegationRepository.delete(bookingToDelete);
+        System.out.println("DEBUG: Reserva eliminada con éxito.");
     }
+
+    /**
+     * Elimina un coche de la tabla Delegations y todas sus reservas asociadas.
+     * Requiere delegationId (clave de partición) y operation (clave de ordenación, que es el ID único del coche).
+     * @param delegationId El delegationId al que pertenece el coche.
+     * @param operation El ID de operación único del coche (e.g., "car#UUID").
+     */
+    public void deleteCar(String delegationId, String operation) {
+        System.out.println("DEBUG: deleteCar llamado para delegationId: " + delegationId + " y operation: " + operation);
+
+        // 1. Eliminar todas las reservas asociadas a este coche
+        List<Booking> bookingsForCar = delegationRepository.listByPartitionKey(operation, Booking.class); // Usa 'operation' como carId
+        if (!bookingsForCar.isEmpty()) {
+            System.out.println("DEBUG: Encontradas " + bookingsForCar.size() + " reservas para el coche " + operation + ". Eliminando...");
+            for (Booking booking : bookingsForCar) {
+                // Se asume que Booking tiene carId como clave de partición y startDate como clave de ordenación
+                deleteBooking(booking.getCarId(), booking.getStartDate());
+            }
+            System.out.println("DEBUG: Todas las reservas del coche " + operation + " eliminadas.");
+        } else {
+            System.out.println("DEBUG: No se encontraron reservas para el coche " + operation + ".");
+        }
+
+        // 2. Eliminar el coche en sí
+        Car carToDelete = new Car();
+        carToDelete.setDelegationId(delegationId);
+        carToDelete.setOperation(operation);
+        delegationRepository.delete(carToDelete);
+        System.out.println("DEBUG: Coche eliminado con éxito.");
+    }
+
+    /**
+     * Elimina una delegación de la tabla Delegations y todos sus coches asociados,
+     * y por ende, todas las reservas de esos coches.
+     * Requiere delegationId (clave de partición) y operation (clave de ordenación, e.g., "profile").
+     * @param delegationId El ID de la delegación a eliminar.
+     * @param operation La operación de la delegación (e.g., "profile").
+     */
+    public void deleteDelegation(String delegationId, String operation) {
+        System.out.println("DEBUG: deleteDelegation llamado para delegationId: " + delegationId + " y operation: " + operation);
+
+        // 1. Obtener y eliminar todos los coches asociados a esta delegación
+        List<Car> carsInDelegation = delegationRepository.listAllCars().stream()
+                .filter(car -> car.getDelegationId() != null && car.getDelegationId().equals(delegationId))
+                .collect(Collectors.toList());
+
+        if (!carsInDelegation.isEmpty()) {
+            System.out.println("DEBUG: Encontrados " + carsInDelegation.size() + " coches en la delegación " + delegationId + ". Eliminando...");
+            for (Car car : carsInDelegation) {
+                // Llamar a deleteCar que a su vez elimina las reservas del coche
+                deleteCar(car.getDelegationId(), car.getOperation());
+            }
+            System.out.println("DEBUG: Todos los coches y sus reservas asociadas de la delegación " + delegationId + " eliminados.");
+        } else {
+            System.out.println("DEBUG: No se encontraron coches para la delegación " + delegationId + ".");
+        }
+
+        // 2. Eliminar la delegación en sí (el item 'profile')
+        Delegation delegationToDelete = new Delegation();
+        delegationToDelete.setDelegationId(delegationId);
+        delegationToDelete.setOperation(operation); // Asumimos "profile"
+        delegationRepository.delete(delegationToDelete);
+        System.out.println("DEBUG: Delegación eliminada con éxito.");
+    }
+
 
     // Get Delegation by keys
     public Delegation getDelegation(String delegationId, String operation) {
@@ -94,105 +167,98 @@ public class DelegationEndpoint {
 
     // List all delegations with operation = "profile"
     public List<Delegation> getAllProfileDelegations() {
-        System.out.println("DEBUG: getAllProfileDelegations called.");
+        System.out.println("DEBUG: getAllProfileDelegations llamado.");
         List<Delegation> allDelegations = delegationRepository.listAllDelegations();
-        System.out.println("DEBUG: Total delegations from repo: " + allDelegations.size());
+        System.out.println("DEBUG: Delegaciones totales del repositorio: " + allDelegations.size());
         List<Delegation> profileDelegations = allDelegations.stream()
                 .filter(d -> "profile".equals(d.getOperation()))
                 .collect(Collectors.toList());
-        System.out.println("DEBUG: Profile delegations filtered: " + profileDelegations.size());
+        System.out.println("DEBUG: Delegaciones de perfil filtradas: " + profileDelegations.size());
         return profileDelegations;
     }
 
     /**
-     * Searches for available cars by delegation ID and date range, querying real bookings.
-     * Also filters cars based on vintage mode.
-     *
-     * @param delegationId The ID of the delegation.
-     * @param startDateStr The start date of the rental period (YYYY-MM-DD format).
-     * @param endDateStr The end date of the rental period (YYYY-MM-DD format).
-     * @param isVintageMode True if vintage cars should be shown, false for modern cars.
-     * @return A list of available cars.
+     * Busca coches disponibles por ID de delegación y rango de fechas, consultando reservas reales.
+     * También filtra coches según el modo vintage.
+     * @param delegationId El ID de la delegación.
+     * @param startDateStr La fecha de inicio del período de alquiler (formato YYYY-MM-DD).
+     * @param endDateStr La fecha de fin del período de alquiler (formato YYYY-MM-DD).
+     * @param isVintageMode True si se deben mostrar coches vintage, false para coches modernos.
+     * @return Una lista de coches disponibles.
      */
     public List<Car> getAvailableCars(String delegationId, String startDateStr, String endDateStr, boolean isVintageMode) {
-        System.out.println("DEBUG: getAvailableCars called for delegationId: " + delegationId + ", start: " + startDateStr + ", end: " + endDateStr + ", vintageMode: " + isVintageMode);
+        System.out.println("DEBUG: getAvailableCars llamado para delegationId: " + delegationId + ", inicio: " + startDateStr + ", fin: " + endDateStr + ", modo vintage: " + isVintageMode);
 
         LocalDate queryStartDate;
         LocalDate queryEndDate;
         try {
             queryStartDate = LocalDate.parse(startDateStr);
             queryEndDate = LocalDate.parse(endDateStr);
-            System.out.println("DEBUG: Dates parsed successfully. Query Start: " + queryStartDate + ", Query End: " + queryEndDate);
+            System.out.println("DEBUG: Fechas analizadas con éxito. Inicio de consulta: " + queryStartDate + ", Fin de consulta: " + queryEndDate);
         } catch (DateTimeParseException e) {
-            System.err.println("ERROR: Failed to parse dates: " + e.getMessage());
-            // Lanza una excepción para que el frontend reciba un error claro
-            throw new IllegalArgumentException("Invalid date format. ExpectedWHEREAS-MM-DD.", e);
+            System.err.println("ERROR: No se pudieron analizar las fechas: " + e.getMessage());
+            throw new IllegalArgumentException("Formato de fecha inválido. Se esperaba YYYY-MM-DD.", e);
         }
 
-
-        // 1. Get all cars for that delegation
+        // 1. Obtener todos los coches de esa delegación
         List<Car> carsInDelegation = delegationRepository.listAllCars().stream()
                 .filter(car -> car.getDelegationId() != null && car.getDelegationId().equals(delegationId))
                 .collect(Collectors.toList());
-        System.out.println("DEBUG: Number of cars found in delegation " + delegationId + ": " + carsInDelegation.size());
+        System.out.println("DEBUG: Número de coches encontrados en la delegación " + delegationId + ": " + carsInDelegation.size());
 
-        // 2. Filter cars based on vintage mode
+        // 2. Filtrar coches según el modo vintage
         List<Car> filteredByModeCars = carsInDelegation.stream()
                 .filter(car -> {
                     if (isVintageMode) {
-                        return car.getYear() < 2000; // Example: Vintage cars are before year 2000
+                        return car.getYear() < 2000;
                     } else {
-                        return car.getYear() >= 2000; // Example: Modern cars are year 2000 or later
+                        return car.getYear() >= 2000;
                     }
                 })
                 .collect(Collectors.toList());
-        System.out.println("DEBUG: Number of cars filtered by mode (" + (isVintageMode ? "Vintage" : "Modern") + "): " + filteredByModeCars.size());
-
+        System.out.println("DEBUG: Número de coches filtrados por modo (" + (isVintageMode ? "Vintage" : "Moderno") + "): " + filteredByModeCars.size());
 
         List<Car> availableCars = new ArrayList<>();
 
-        // 3. For each car, check if there are any overlapping bookings
-        for (Car car : filteredByModeCars) { // Iterate over cars already filtered by mode
-            String carUniqueId = car.getOperation(); // Use car.getOperation() as the unique ID for the car
+        // 3. Para cada coche, verificar si hay reservas superpuestas
+        for (Car car : filteredByModeCars) {
+            String carUniqueId = car.getOperation();
             if (carUniqueId == null || carUniqueId.isEmpty()) {
-                System.err.println("WARNING: Car found with null or empty unique ID (operation). Skipping: " + car.getMake() + " " + car.getModel());
-                continue; // Skip this car if its unique ID is invalid
+                System.err.println("ADVERTENCIA: Coche encontrado con ID único (operación) nulo o vacío. Omitiendo: " + car.getMake() + " " + car.getModel());
+                continue;
             }
 
-            System.out.println("DEBUG: Checking bookings for car ID: " + carUniqueId);
+            System.out.println("DEBUG: Verificando reservas para el ID del coche: " + carUniqueId);
             List<Booking> bookingsForCar = delegationRepository.listByPartitionKey(carUniqueId, Booking.class);
-            System.out.println("DEBUG: Number of bookings found for car " + carUniqueId + ": " + bookingsForCar.size());
+            System.out.println("DEBUG: Número de reservas encontradas para el coche " + carUniqueId + ": " + bookingsForCar.size());
 
             boolean isBookedDuringPeriod = false;
             for (Booking booking : bookingsForCar) {
-                System.out.println("DEBUG: Checking booking " + booking.getBookingId() + " (Car: " + booking.getCarId() + ") from " + booking.getStartDate() + " to " + booking.getEndDate());
+                System.out.println("DEBUG: Verificando reserva " + booking.getBookingId() + " (Coche: " + booking.getCarId() + ") de " + booking.getStartDate() + " a " + booking.getEndDate());
                 if (booking.overlapsWith(queryStartDate, queryEndDate)) {
                     isBookedDuringPeriod = true;
-                    System.out.println("DEBUG: Car " + carUniqueId + " is booked during the requested period by booking " + booking.getBookingId());
-                    break; // No need to check more bookings for this car
+                    System.out.println("DEBUG: El coche " + carUniqueId + " está reservado durante el período solicitado por la reserva " + booking.getBookingId());
+                    break;
                 }
             }
 
-            // Only add the car to available list if it's not booked during the period
             if (!isBookedDuringPeriod) {
                 availableCars.add(car);
-                System.out.println("DEBUG: Car " + carUniqueId + " is available.");
+                System.out.println("DEBUG: El coche " + carUniqueId + " está disponible.");
             }
         }
-        System.out.println("DEBUG: Final count of available cars found: " + availableCars.size());
+        System.out.println("DEBUG: Recuento final de coches disponibles encontrados: " + availableCars.size());
         return availableCars;
     }
 
     /**
-     * Lists all bookings from the Bookings table.
-     * Assumes the repository can list all items of type Booking.
-     * @return A list of all bookings.
+     * Lista todas las reservas de la tabla Bookings.
+     * @return Una lista de todas las reservas.
      */
     public List<Booking> getAllBookings() {
-        System.out.println("DEBUG: getAllBookings called.");
-        // Assuming delegationRepository.listAllItems(Booking.class) can scan the Bookings table
+        System.out.println("DEBUG: getAllBookings llamado.");
         List<Booking> allBookings = delegationRepository.listAllItems(Booking.class);
-        System.out.println("DEBUG: Total bookings found: " + allBookings.size());
+        System.out.println("DEBUG: Reservas totales encontradas: " + allBookings.size());
         return allBookings;
     }
 }
