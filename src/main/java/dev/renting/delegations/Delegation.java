@@ -1,28 +1,58 @@
 package dev.renting.delegations;
 
-import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbAttribute;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSortKey;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbAttribute;
 
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 @DynamoDbBean
 public class Delegation {
 
-    private String delegationId; // Clave de partición
-    private String operation;    // Clave de ordenación (ej. "profile")
-    private String name;
-    private String adress;
-    private String city;
-    private String manager;
-    private String telf;
-    private int carQuantity;
-    private double lat;
-    private double longVal; // 'long' es una palabra reservada en Java, usar 'longVal' o similar
-
-    // Constructor vacío requerido por DynamoDB Enhanced Client
-    public Delegation() {}
+    private String pk; // Partition Key 
+    private String sk; // Sort Key 
+    private String itemType; // To distinguish between different item types 
+    private String delegationId; // ID de la delegación 
+    private String name; // Nombre asociado al ítem (para delegación) 
+    private String address; // Dirección del evento o entrega 
+    private String city; // Ciudad donde ocurre la operación 
+    private Double lat; // Latitud de la ubicación 
+    private Double long; // Longitud de la ubicación 
+    private String manager; // Encargado o gestor 
+    private String phone; // Número de teléfono (para delegación) 
 
     @DynamoDbPartitionKey
+    public String getPk() {
+        return this.pk;
+    }
+
+    public void setPk(String pk) {
+        this.pk = pk;
+    }
+
+    @DynamoDbSortKey
+    public String getSk() {
+        return this.sk;
+    }
+
+    public void setSk(String sk) {
+        this.sk = sk;
+    }
+
+    @DynamoDbAttribute("itemType")
+    public String getItemType() {
+        return itemType;
+    }
+
+    public void setItemType(String itemType) {
+        this.itemType = itemType;
+    }
+
     @DynamoDbAttribute("delegationId")
     public String getDelegationId() {
         return delegationId;
@@ -30,16 +60,6 @@ public class Delegation {
 
     public void setDelegationId(String delegationId) {
         this.delegationId = delegationId;
-    }
-
-    @DynamoDbSortKey
-    @DynamoDbAttribute("operation")
-    public String getOperation() {
-        return operation;
-    }
-
-    public void setOperation(String operation) {
-        this.operation = operation;
     }
 
     @DynamoDbAttribute("name")
@@ -51,13 +71,13 @@ public class Delegation {
         this.name = name;
     }
 
-    @DynamoDbAttribute("adress")
-    public String getAdress() {
-        return adress;
+    @DynamoDbAttribute("address")
+    public String getAddress() {
+        return address;
     }
 
-    public void setAdress(String adress) {
-        this.adress = adress;
+    public void setAddress(String address) {
+        this.address = address;
     }
 
     @DynamoDbAttribute("city")
@@ -69,6 +89,24 @@ public class Delegation {
         this.city = city;
     }
 
+    @DynamoDbAttribute("lat")
+    public Double getLat() {
+        return lat;
+    }
+
+    public void setLat(Double lat) {
+        this.lat = lat;
+    }
+
+    @DynamoDbAttribute("long")
+    public Double getLong() {
+        return long;
+    }
+
+    public void setLong(Double longVal) { // Renamed parameter to avoid conflict with method name
+        this.long = longVal;
+    }
+
     @DynamoDbAttribute("manager")
     public String getManager() {
         return manager;
@@ -78,40 +116,20 @@ public class Delegation {
         this.manager = manager;
     }
 
-    @DynamoDbAttribute("telf")
-    public String getTelf() {
-        return telf;
+    @DynamoDbAttribute("phone")
+    public String getPhone() {
+        return phone;
     }
 
-    public void setTelf(String telf) {
-        this.telf = telf;
+    public void setPhone(String phone) {
+        this.phone = phone;
     }
 
-    @DynamoDbAttribute("carQuantity")
-    public int getCarQuantity() {
-        return carQuantity;
-    }
-
-    public void setCarQuantity(int carQuantity) {
-        this.carQuantity = carQuantity;
-    }
-
-    @DynamoDbAttribute("lat")
-    public double getLat() {
-        return lat;
-    }
-
-    public void setLat(double lat) {
-        this.lat = lat;
-    }
-
-    // Usar un nombre diferente para evitar conflicto con la palabra reservada 'long'
-    @DynamoDbAttribute("long") // La anotación debe coincidir con el nombre del atributo en DynamoDB
-    public double getLongVal() {
-        return longVal;
-    }
-
-    public void setLongVal(double longVal) {
-        this.longVal = longVal;
+    // Helper method to set PK and SK based on delegationId
+    public void setDelegationIdentifier(String delegationId) {
+        this.delegationId = delegationId;
+        this.pk = "DELEGATION#" + delegationId;
+        this.sk = "METADATA#" + delegationId;
+        this.itemType = "delegation";
     }
 }

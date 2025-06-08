@@ -1,123 +1,155 @@
 package dev.renting.delegations;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import dev.renting.config.DynamoDBConfig;
 import org.springframework.stereotype.Repository;
-import software.amazon.awssdk.enhanced.dynamodb.*;
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
+import software.amazon.awssdk.enhanced.dynamodb.Key;
+import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 import software.amazon.awssdk.enhanced.dynamodb.model.ScanEnhancedRequest;
-import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.enhanced.dynamodb.model.ScanEnhancedRequest.Builder;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Repository
 public class DelegationRepositoryImpl implements DelegationRepository {
 
     private final DynamoDbEnhancedClient enhancedClient;
-    private final String delegationsTableName = "Delegations"; // Nombre de la tabla principal de Delegaciones
-    private final String bookingsTableName = "Bookings"; // Nombre de la tabla de Reservas
+    private final DynamoDbTable<Car> carTable;
+    private final DynamoDbTable<Delegation> delegationTable;
 
-    @Autowired
     public DelegationRepositoryImpl(DynamoDbEnhancedClient enhancedClient) {
         this.enhancedClient = enhancedClient;
+        // Obtener la tabla de DynamoDB para Car
+        this.carTable = enhancedClient.table(DynamoDBConfig.TABLE_NAME, TableSchema.fromBean(Car.class));
+        // Obtener la tabla de DynamoDB para Delegation
+        this.delegationTable = enhancedClient.table(DynamoDBConfig.TABLE_NAME, TableSchema.fromBean(Delegation.class));
     }
 
-    // Helper method to get the correct table name based on the class
-    private <T> String getTableNameForClass(Class<T> clazz) {
-        if (clazz.equals(Booking.class)) {
-            return bookingsTableName;
+    @Override
+    public Car saveCar(Car car) {
+        if (car.getCarId() == null || car.getCarId().isEmpty()) {
+            // Generate a unique carId if not provided (e.g., UUID)
+            car.setCarIdentifier(java.util.UUID.randomUUID().toString());
+        } else {
+            car.setCarIdentifier(car.getCarId()); // Ensure PK and SK are set based on existing carId
         }
-        // Add more conditions here if you have other specific tables for other classes
-        return delegationsTableName; // Default to delegations table for other types (Car, Delegation)
+        carTable.putItem(car);
+        return car;
     }
 
     @Override
-    public <T> void save(T item) {
-        // Usa el nombre de tabla correcto para la clase del ítem
-        String actualTableName = getTableNameForClass((Class<T>) item.getClass());
-        DynamoDbTable<T> table =
-                enhancedClient.table(
-                        actualTableName,
-                        TableSchema.fromBean((Class<T>) item.getClass()));
-        table.putItem(item);
-    }
-
-    @Override
-    public <T> T get(String partitionKey, String sortKey, Class<T> clazz) {
-        // Usa el nombre de tabla correcto para la clase
-        String actualTableName = getTableNameForClass(clazz);
-        DynamoDbTable<T> table = enhancedClient.table(actualTableName, TableSchema.fromBean(clazz));
+    public Optional<Car> findCarById(String carId) {
         Key key = Key.builder()
-                .partitionValue(partitionKey)
-                .sortValue(sortKey)
+                .partitionValue("CAR#" + carId)
+                .sortValue("METADATA#" + carId) // Assuming METADATA#<carId> as the SK for car details
                 .build();
-        return table.getItem(key);
+        Car car = carTable.getItem(key);
+        return Optional.ofNullable(car);
     }
 
     @Override
-    public <T> List<T> listByPartitionKey(String partitionKey, Class<T> clazz) {
-        // Usa el nombre de tabla correcto para la clase
-        String actualTableName = getTableNameForClass(clazz);
-        DynamoDbTable<T> table = enhancedClient.table(actualTableName, TableSchema.fromBean(clazz));
-        QueryConditional queryConditional = QueryConditional.keyEqualTo(k -> k.partitionValue(partitionKey));
-        List<T> items = new ArrayList<>();
-        // IMPORTANT: Avoid orderBy() in Firestore queries as it can lead to runtime errors
-        // due to missing indexes. If sorting is needed, fetch all data and sort in memory.
-        table.query(queryConditional).items().forEach(items::add);
-        return items;
-    }
+    public List<Car> findAllCars() {
+        // Para obtener todos los coches, necesitamos escanear la tabla y filtrar por itemType "car"
+        // Opcional: Si los coches están distribuidos en diferentes PKs (e.g., DELEGATION#<id> con SK CAR#<id>),
+        // se requeriría una estrategia diferente (e.g., GSI o múltiples queries).
+        // Por ahora, asumimos que los coches tienen PK = CAR#<carId> y SK = METADATA#<carId>
+        // y que un SCAM es aceptable para el contexto actual (pocos datos o desarrollo).
 
-    @Override
-    public List<Car> listAllCars() {
-        // Create a DynamoDB table object for the Car class, mapping to the "Delegations" table
-        DynamoDbTable<Car> table = enhancedClient.table(delegationsTableName, TableSchema.fromBean(Car.class));
-        // Initialize an empty ArrayList to store the retrieved Car objects
-        List<Car> cars = new ArrayList<>();
-        // Create a HashMap to store expression values for the filter expression
-        Map<String, AttributeValue> expressionValues = new HashMap<>();
-        // Add a key-value pair to the map, where ":val" is the placeholder for the string "car"
-        expressionValues.put(":val", AttributeValue.builder().s("car").build());
-        // Build a filter expression to match items where the "operation" sort key begins with "car"
-        Expression filterExpression = Expression.builder()
-                .expression("begins_with(operation, :val)") // Define the expression using the begins_with function
-                .expressionValues(expressionValues) // Associate the expression values map
-                .build(); // Construct the Expression object
-        // Build a ScanEnhancedRequest with the filter expression to limit results to Car items
+        // Construir un ScanEnhancedRequest para filtrar por itemType "car"
         ScanEnhancedRequest scanRequest = ScanEnhancedRequest.builder()
-                .filterExpression(filterExpression) // Apply the filter expression to the scan
-                .build(); // Construct the ScanEnhancedRequest object
-        // Execute the scan operation and iterate over the results, adding each Car item to the cars list
-        table.scan(scanRequest).items().forEach(cars::add);
-        // Return the list of Car objects
-        return cars;
+                .filterExpression(
+                        software.amazon.awssdk.enhanced.dynamodb.model.Expression.builder()
+                                .expression("itemType = :itemType")
+                                .expressionValues(java.util.Collections.singletonMap(":itemType", software.amazon.awssdk.services.dynamodb.model.AttributeValue.builder().s("car").build()))
+                                .build()
+                )
+                .build();
+
+        return carTable.scan(scanRequest)
+                .items()
+                .stream()
+                .collect(Collectors.toList());
     }
 
     @Override
-    public List<Delegation> listAllDelegations() {
-        DynamoDbTable<Delegation> table = enhancedClient.table(delegationsTableName, TableSchema.fromBean(Delegation.class));
-        List<Delegation> delegations = new ArrayList<>();
-        Map<String, AttributeValue> expressionValues = new HashMap<>();
-        expressionValues.put(":val", AttributeValue.builder().s("profile").build());
-        Expression filterExpression = Expression.builder()
-                .expression("operation = :val")
-                .expressionValues(expressionValues)
+    public Car updateCar(Car car) {
+        // Asegúrate de que el PK y SK estén correctos antes de actualizar
+        if (car.getCarId() == null || car.getCarId().isEmpty()) {
+            throw new IllegalArgumentException("Car ID must not be null for update operation.");
+        }
+        car.setCarIdentifier(car.getCarId()); // Re-establecer PK y SK
+        carTable.updateItem(car);
+        return car;
+    }
+
+    @Override
+    public void deleteCar(String carId) {
+        Key key = Key.builder()
+                .partitionValue("CAR#" + carId)
+                .sortValue("METADATA#" + carId)
                 .build();
+        carTable.deleteItem(key);
+    }
+
+    @Override
+    public Delegation saveDelegation(Delegation delegation) {
+        if (delegation.getDelegationId() == null || delegation.getDelegationId().isEmpty()) {
+            delegation.setDelegationIdentifier(java.util.UUID.randomUUID().toString());
+        } else {
+            delegation.setDelegationIdentifier(delegation.getDelegationId());
+        }
+        delegationTable.putItem(delegation);
+        return delegation;
+    }
+
+    @Override
+    public Optional<Delegation> findDelegationById(String delegationId) {
+        Key key = Key.builder()
+                .partitionValue("DELEGATION#" + delegationId)
+                .sortValue("METADATA#" + delegationId)
+                .build();
+        Delegation delegation = delegationTable.getItem(key);
+        return Optional.ofNullable(delegation);
+    }
+
+    @Override
+    public List<Delegation> findAllDelegations() {
+        // Similar a findAllCars, usamos un scan con filtro por itemType "delegation"
         ScanEnhancedRequest scanRequest = ScanEnhancedRequest.builder()
-                .filterExpression(filterExpression)
+                .filterExpression(
+                        software.amazon.awssdk.enhanced.dynamodb.model.Expression.builder()
+                                .expression("itemType = :itemType")
+                                .expressionValues(java.util.Collections.singletonMap(":itemType", software.amazon.awssdk.services.dynamodb.model.AttributeValue.builder().s("delegation").build()))
+                                .build()
+                )
                 .build();
-        table.scan(scanRequest).items().forEach(delegations::add);
-        return delegations;
+
+        return delegationTable.scan(scanRequest)
+                .items()
+                .stream()
+                .collect(Collectors.toList());
     }
 
     @Override
-    public <T> List<T> listAllItems(Class<T> clazz) {
-        // Usa el nombre de tabla correcto para la clase
-        String actualTableName = getTableNameForClass(clazz);
-        DynamoDbTable<T> table = enhancedClient.table(actualTableName, TableSchema.fromBean(clazz));
-        List<T> items = new ArrayList<>();
-        table.scan(ScanEnhancedRequest.builder().build()).items().forEach(items::add);
-        return items;
+    public Delegation updateDelegation(Delegation delegation) {
+        if (delegation.getDelegationId() == null || delegation.getDelegationId().isEmpty()) {
+            throw new IllegalArgumentException("Delegation ID must not be null for update operation.");
+        }
+        delegation.setDelegationIdentifier(delegation.getDelegationId());
+        delegationTable.updateItem(delegation);
+        return delegation;
+    }
+
+    @Override
+    public void deleteDelegation(String delegationId) {
+        Key key = Key.builder()
+                .partitionValue("DELEGATION#" + delegationId)
+                .sortValue("METADATA#" + delegationId)
+                .build();
+        delegationTable.deleteItem(key);
     }
 }

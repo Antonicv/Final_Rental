@@ -1,72 +1,201 @@
-// UserRepositoryImpl.java
 package dev.renting.users;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import dev.renting.config.DynamoDBConfig;
 import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
+import software.amazon.awssdk.enhanced.dynamodb.model.ScanEnhancedRequest;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
-import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Repository
 public class UserRepositoryImpl implements UserRepository {
 
     private final DynamoDbEnhancedClient enhancedClient;
-    private final String tableName = "Users";
+    private final DynamoDbTable<User> userTable;
+    private final DynamoDbTable<Booking> bookingTable;
 
-    @Autowired
     public UserRepositoryImpl(DynamoDbEnhancedClient enhancedClient) {
         this.enhancedClient = enhancedClient;
+        this.userTable = enhancedClient.table(DynamoDBConfig.TABLE_NAME, TableSchema.fromBean(User.class));
+        this.bookingTable = enhancedClient.table(DynamoDBConfig.TABLE_NAME, TableSchema.fromBean(Booking.class));
     }
 
+    @Override
+    public User saveUser(User user) {
+        if (user.getUserId() == null || user.getUserId().isEmpty()) {
+            user.setUserIdentifier(UUID.randomUUID().toString());
+        } else {
+            user.setUserIdentifier(user.getUserId());
+        }
+        userTable.putItem(user);
+        return user;
+    }
 
     @Override
-    public <T> void save(T item) {
-        DynamoDbTable<T> table =
-                enhancedClient.table(
-                        tableName,
-                        TableSchema.fromBean((Class<T>) item.getClass()));
-        table.putItem(item);
+    public Optional<User> findUserById(String userId) {
+        Key key = Key.builder()
+                .partitionValue("USER#" + userId)
+                .sortValue("METADATA#" + userId)
+                .build();
+        User user = userTable.getItem(key);
+        return Optional.ofNullable(user);
+    }
+
+    @Override
+    public Optional<User> findUserByUsername(String username) {
+        // Implementación con Scan. Para producción, considera un GSI si la consulta por username es frecuente.
+        ScanEnhancedRequest scanRequest = ScanEnhancedRequest.builder()
+                .filterExpression(
+                        software.amazon.awssdk.enhanced.dynamodb.model.Expression.builder()
+                                .expression("itemType = :itemType AND username = :username")
+                                .expressionValues(java.util.Map.of(
+                                        ":itemType", AttributeValue.builder().s("user").build(),
+                                        ":username", AttributeValue.builder().s(username).build()
+                                ))
+                                .build()
+                )
+                .build();
+
+        return userTable.scan(scanRequest)
+                .items()
+                .stream()
+                .findFirst(); // Asumimos que el username es único
+    }
+
+    @Override
+    public List<User> findAllUsers() {
+        ScanEnhancedRequest scanRequest = ScanEnhancedRequest.builder()
+                .filterExpression(
+                        software.amazon.awssdk.enhanced.dynamodb.model.Expression.builder()
+                                .expression("itemType = :itemType")
+                                .expressionValues(java.util.Collections.singletonMap(":itemType", AttributeValue.builder().s("user").build()))
+                                .build()
+                )
+                .build();
+
+        return userTable.scan(scanRequest)
+                .items()
+                .stream()
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public User updateUser(User user) {
+        if (user.getUserId() == null || user.getUserId().isEmpty()) {
+            throw new IllegalArgumentException("User ID must not be null for update operation.");
+        }
+        user.setUserIdentifier(user.getUserId());
+        userTable.updateItem(user);
+        return user;
+    }
+
+    @Override
+    public void deleteUser(String userId) {
+        Key key = Key.builder()
+                .partitionValue("USER#" + userId)
+                .sortValue("METADATA#" + userId)
+                .build();
+        userTable.deleteItem(key);
+    }
+
+    @Override
+    public Booking saveBooking(Booking booking) {
+        if (booking.getBookingId() == null || booking.getBookingId().isEmpty()) {
+            booking.setBookingIdentifier(UUID.randomUUID().toString());
+        } else {
+            booking.setBookingIdentifier(booking.getBookingId());
+        }
+        bookingTable.putItem(booking);
+        return booking;
+    }
+
+    @Override
+    public Optional<Booking> findBookingById(String bookingId) {
+        Key key = Key.builder()
+                .partitionValue("BOOKING#" + bookingId)
+                .sortValue("METADATA#" + bookingId)
+                .build();
+        Booking booking = bookingTable.getItem(key);
+        return Optional.ofNullable(booking);
+    }
+
+    @Override
+    public List<Booking> findAllBookings() {
+        ScanEnhancedRequest scanRequest = ScanEnhancedRequest.builder()
+                .filterExpression(
+                        software.amazon.awssdk.enhanced.dynamodb.model.Expression.builder()
+                                .expression("itemType = :itemType")
+                                .expressionValues(java.util.Collections.singletonMap(":itemType", AttributeValue.builder().s("booking").build()))
+                                .build()
+                )
+                .build();
+
+        return bookingTable.scan(scanRequest)
+                .items()
+                .stream()
+                .collect(Collectors.toList());
     }
 
     @Override
     public List<Booking> findBookingsByUserId(String userId) {
-        // This client creates a reference to our DynamoDB table
-        // telling the SDK to map table items to our Booking Java class
-        // it uses the value of enhancedClient
-        DynamoDbTable<Booking> table = enhancedClient.table(tableName, TableSchema.fromBean(Booking.class));
+        // Esta operación es más compleja y puede requerir un GSI.
+        // Asumiendo que has creado un GSI con PK = USER#<userId> y SK = BOOKING#<bookingId>
+        // Si no tienes un GSI, esta operación implicaría un Scan de toda la tabla y filtrar,
+        // lo cual es ineficiente para grandes volúmenes de datos.
 
-        // Assuming ''Booking'' has a partition key named "userId"
-        // empty list where we will collect all the bookings found for the user.
-        List<Booking> bookings = new ArrayList<>();
+        // Si tienes un GSI llamado "UserBookingsIndex" con PK='userId' y SK='bookingId'
+        // Puedes consultarlo así:
+        /*
+        return bookingTable.index("UserBookingsIndex").query(QueryConditional.keyEqualTo(Key.builder()
+                .partitionValue("USER#" + userId)
+                .build())).items().stream().collect(Collectors.toList());
+        */
 
-        // Query for items where the partition key equals userId and the sort key begins with "booking"
-        // QueryConditional.keyEqualTo(...): Tells DynamoDB to return all items
-        // where the partition key (here, userId) equals the value you provided.
-        Iterator<Booking> results = table.query(
-                r -> r.queryConditional(
-                        QueryConditional.sortBeginsWith(
-                                Key.builder()
-                                        .partitionValue(userId)
-                                        .sortValue("booking")
-                                        .build()
-                        )
+        // Si no tienes un GSI para esto y el PK de Booking es BOOKING#<bookingId>,
+        // la única forma es escanear y filtrar, lo cual es ineficiente para producción.
+        // Implementación con Scan para este ejemplo:
+        ScanEnhancedRequest scanRequest = ScanEnhancedRequest.builder()
+                .filterExpression(
+                        software.amazon.awssdk.enhanced.dynamodb.model.Expression.builder()
+                                .expression("itemType = :itemType AND userId = :userId")
+                                .expressionValues(java.util.Map.of(
+                                        ":itemType", AttributeValue.builder().s("booking").build(),
+                                        ":userId", AttributeValue.builder().s(userId).build()
+                                ))
+                                .build()
                 )
-        ).items().iterator();
-        // .items().iterator(): Gets an iterator over the query results.
-        // Each item is mapped to a Booking object.
+                .build();
 
-        // Loop over the query results and add them to the 'bookings' list
-        // with the method reference: bookings::add
-        results.forEachRemaining(bookings::add);
-        return bookings;
+        return bookingTable.scan(scanRequest)
+                .items()
+                .stream()
+                .collect(Collectors.toList());
     }
 
+    @Override
+    public Booking updateBooking(Booking booking) {
+        if (booking.getBookingId() == null || booking.getBookingId().isEmpty()) {
+            throw new IllegalArgumentException("Booking ID must not be null for update operation.");
+        }
+        booking.setBookingIdentifier(booking.getBookingId());
+        bookingTable.updateItem(booking);
+        return booking;
+    }
 
-
+    @Override
+    public void deleteBooking(String bookingId) {
+        Key key = Key.builder()
+                .partitionValue("BOOKING#" + bookingId)
+                .sortValue("METADATA#" + bookingId)
+                .build();
+        bookingTable.deleteItem(key);
+    }
 }
