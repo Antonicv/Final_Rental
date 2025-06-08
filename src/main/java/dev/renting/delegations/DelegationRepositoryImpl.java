@@ -120,4 +120,18 @@ public class DelegationRepositoryImpl implements DelegationRepository {
         table.scan(ScanEnhancedRequest.builder().build()).items().forEach(items::add);
         return items;
     }
+    @Override
+public <T> void delete(T item) {
+    String actualTableName = getTableNameForClass((Class<T>) item.getClass());
+    DynamoDbTable<T> table = enhancedClient.table(actualTableName, TableSchema.fromBean((Class<T>) item.getClass()));
+    table.deleteItem(item);
+    
+}
+
+    @Override
+public void delete(Booking booking) {
+    DynamoDbTable<Booking> table = enhancedClient.table("Bookings", TableSchema.fromBean(Booking.class));
+    table.deleteItem(booking);
+
+}
 }

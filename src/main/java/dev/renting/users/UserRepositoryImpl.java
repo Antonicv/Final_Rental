@@ -66,6 +66,34 @@ public class UserRepositoryImpl implements UserRepository {
         results.forEachRemaining(bookings::add);
         return bookings;
     }
+    @Override
+public User findById(String userId, String operation) {
+    DynamoDbTable<User> table = enhancedClient.table(tableName, TableSchema.fromBean(User.class));
+    Key key = Key.builder()
+            .partitionValue(userId)
+            .sortValue(operation)
+            .build();
+    return table.getItem(key);
+}
+
+@Override
+public void deleteById(String userId, String operation) {
+    DynamoDbTable<User> table = enhancedClient.table(tableName, TableSchema.fromBean(User.class));
+    Key key = Key.builder()
+            .partitionValue(userId)
+            .sortValue(operation)
+            .build();
+    table.deleteItem(key);
+}
+
+@Override
+public List<User> findAllUsers() {
+    DynamoDbTable<User> table = enhancedClient.table(tableName, TableSchema.fromBean(User.class));
+    List<User> users = new ArrayList<>();
+    table.scan().items().forEach(users::add);
+    return users;
+}
+
 
 
 

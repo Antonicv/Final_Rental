@@ -22,6 +22,13 @@ public class UserEndpoint {
         System.out.println("UserEndpoint.saveUser: " + user);
         userRepository.save(user);
     }
+    public User getUser(String userId, String operation) {
+        return userRepository.findById(userId, operation);
+    }
+    // Delete
+    public void deleteUser(String userId, String operation) {
+        userRepository.deleteById(userId, operation);
+    }
 
     // Save Booking
     public void saveBooking(Booking booking) {
@@ -29,8 +36,11 @@ public class UserEndpoint {
     }
 
     // Get all bookings for a user
-    public List<Booking> getBookingsByUser(String userId) {
+     public List<Booking> getBookingsByUser(String userId) {
         return userRepository.findBookingsByUserId(userId);
+    }
+     public List<User> getAllUsers() {
+        return userRepository.findAllUsers();
     }
 
 }

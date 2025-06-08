@@ -15,4 +15,6 @@ public interface DelegationRepository {
     List<Delegation> listAllDelegations();
 
     <T> List<T> listAllItems(Class<T> clazz);
+    <T> void delete(T item);
+    void delete(Booking booking);
 }
