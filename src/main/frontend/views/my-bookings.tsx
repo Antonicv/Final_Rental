@@ -24,8 +24,8 @@ function sanitizeFilenamePart(text: string): string {
 }
 
 // Función de guarda de tipo para asegurar que el objeto Car tiene propiedades 'make', 'model' y 'year'
-function isCarWithMakeAndModel(car: Car): car is Car & { make: string; model: string; year: number; color?: string; price?: number; rented?: boolean; } {
-  return typeof car.make === 'string' && typeof car.model === 'string' && typeof car.year === 'number';
+function isCarWithMakeAndModel(car: Car | undefined): car is Car & { make: string; model: string; year: number; color?: string; price?: number; rented?: boolean; } {
+  return !!car && typeof car.make === 'string' && typeof car.model === 'string' && typeof car.year === 'number';
 }
 
 // Función para generar URL de imagen (condicional: local para vintage, externa para moderno)

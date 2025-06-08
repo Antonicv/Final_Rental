@@ -61,84 +61,86 @@ export default function ListCars() {
   }, []);
 
   // Función para obtener detalles desde la API NHTSA para coches normales
-  const fetchCarDetails = async (car: Car) => {
-    setFetchingDetails(true);
-  
-    if (!car.make || !car.model) {
+const fetchCarDetails = async (car: Car) => {
+  setFetchingDetails(true);
+
+  if (!car.make || !car.model) {
     setSelectedCarDetails(null);
     setFetchingDetails(false);
     return;
   }
 
-    if (car.year < 2000) {
-      // Mock data para coches vintage
-      // (Se mantiene activo para coches vintage)
-      const mockDetails = {
-        engine: '1.5L Naturally Aspirated Inline-4 (Vintage)',
-        horsepower: '75 hp (Vintage)',
-        torque: '80 lb-ft (Vintage)',
-        transmission: '4-speed Manual (Vintage)',
-        fuelEconomy: '18 MPG (Vintage)',
-        acceleration: '0-60 mph in 15.0s (Vintage)',
-        features: ['Radio AM/FM', 'Manual Windows'],
-        safetyRating: 'N/A',
-        dimensions: 'L: 160in, W: 64in, H: 55in',
-        cargoVolume: '8.0 cu ft',
+  const modelLower = car.model.toLowerCase();
+
+  if (car.year < 2000) {
+    // Mock data para coches vintage
+    const mockDetails = {
+      engine: '1.5L Naturally Aspirated Inline-4 (Vintage)',
+      horsepower: '75 hp (Vintage)',
+      torque: '80 lb-ft (Vintage)',
+      transmission: '4-speed Manual (Vintage)',
+      fuelEconomy: '18 MPG (Vintage)',
+      acceleration: '0-60 mph in 15.0s (Vintage)',
+      features: ['Radio AM/FM', 'Manual Windows'],
+      safetyRating: 'N/A',
+      dimensions: 'L: 160in, W: 64in, H: 55in',
+      cargoVolume: '8.0 cu ft',
+      make: car.make,
+      model: car.model,
+    };
+    setSelectedCarDetails(mockDetails);
+    setFetchingDetails(false);
+    return;
+  }
+
+  try {
+    // Llamada real a la API de NHTSA para coches normales
+    const response = await fetch(
+      `https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMake/${encodeURIComponent(car.make)}?format=json`
+    );
+    const data = await response.json();
+
+    const modelMatch = data.Results.find(
+      (m: any) => m.Model_Name?.toLowerCase() === modelLower
+    );
+
+    if (!modelMatch) {
+      setSelectedCarDetails({
+        engine: 'N/D',
+        horsepower: 'N/D',
+        transmission: 'N/D',
+        fuelEconomy: 'N/D',
+        acceleration: 'N/D',
+        safetyRating: 'N/D',
+        dimensions: 'N/D',
+        cargoVolume: 'N/D',
+        features: ['Modelo no encontrado en NHTSA'],
         make: car.make,
         model: car.model,
-      };
-      setSelectedCarDetails(mockDetails);
-      setFetchingDetails(false);
-      return;
+      });
+    } else {
+      setSelectedCarDetails({
+        engine: 'N/D',
+        horsepower: 'N/D',
+        transmission: 'N/D',
+        fuelEconomy: 'N/D',
+        acceleration: 'N/D',
+        safetyRating: 'N/D',
+        dimensions: 'N/D',
+        cargoVolume: 'N/D',
+        features: ['Modelo encontrado en NHTSA'],
+        make: car.make,
+        model: car.model,
+      });
     }
+  } catch (error) {
+    console.error('Error al obtener datos de NHTSA:', error);
+    setSelectedCarDetails(null);
+  } finally {
+    setFetchingDetails(false);
+  }
+};
 
-    try {
-      // Llamada real a la API de NHTSA para coches normales
-      const response = await fetch(
-        `https://vpic.nhtsa.dot.gov/api/vehicles/GetModelsForMake/${encodeURIComponent(car.make)}?format=json`
-      );
-      const data = await response.json();
-
-      const modelMatch = data.Results.find(
-        (m: any) => m.Model_Name.toLowerCase() === car.model.toLowerCase()
-      );
-
-      if (!modelMatch) {
-        setSelectedCarDetails({
-          engine: 'N/D',
-          horsepower: 'N/D',
-          transmission: 'N/D',
-          fuelEconomy: 'N/D',
-          acceleration: 'N/D',
-          safetyRating: 'N/D',
-          dimensions: 'N/D',
-          cargoVolume: 'N/D',
-          features: ['Modelo no encontrado en NHTSA'],
-          make: car.make,
-          model: car.model,
-        });
-      } else {
-        setSelectedCarDetails({
-          engine: 'N/D',
-          horsepower: 'N/D',
-          transmission: 'N/D',
-          fuelEconomy: 'N/D',
-          acceleration: 'N/D',
-          safetyRating: 'N/D',
-          dimensions: 'N/D',
-          cargoVolume: 'N/D',
-          features: ['Modelo encontrado en NHTSA'],
-          make: car.make,
-          model: car.model,
-        });
-      }
-    } catch (error) {
-      console.error('Error al obtener datos de NHTSA:', error);
-      setSelectedCarDetails(null);
-    } finally {
-      setFetchingDetails(false);
-    }
-  };
 
   function isCarWithMakeAndModel(car: Car): car is Car & { make: string; model: string; year: number; color?: string; price?: number; rented?: boolean; } {
     return typeof car.make === 'string' && typeof car.model === 'string' && typeof car.year === 'number';
