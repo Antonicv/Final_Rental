@@ -3,6 +3,9 @@ package dev.renting.users;
 import java.util.List;
 import java.util.Optional;
 
+// Importa la clase Booking unificada desde dev.renting.delegations
+import dev.renting.delegations.Booking; // <--- CAMBIO AQUÍ
+
 public interface UserRepository {
 
     /**

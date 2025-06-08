@@ -5,6 +5,8 @@ import com.vaadin.hilla.Endpoint;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
+// Importa la clase Booking unificada desde dev.renting.delegations
+import dev.renting.delegations.Booking; // <--- CAMBIO AQUÍ
 
 @Endpoint
 @AnonymousAllowed // Considera aplicar seguridad con @RolesAllowed o @Secured

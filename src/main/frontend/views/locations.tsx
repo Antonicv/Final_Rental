@@ -92,7 +92,8 @@ export default function LocationsView() {
       try {
         setLoading(true);
         setError(null);
-        const result = await DelegationEndpoint.getAllProfileDelegations();
+        const result = await DelegationEndpoint.getAllDelegations();
+
         const validDelegations = (result ?? []).filter((d): d is Delegation => d !== undefined && d !== null);
         setDelegations(validDelegations);
 

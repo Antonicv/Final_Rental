@@ -6,7 +6,6 @@ import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
-import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 import software.amazon.awssdk.enhanced.dynamodb.model.ScanEnhancedRequest;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
@@ -15,16 +14,21 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+// CAMBIO IMPORTANTE: Importar la clase Booking unificada
+import dev.renting.delegations.Booking;
+
 @Repository
 public class UserRepositoryImpl implements UserRepository {
 
     private final DynamoDbEnhancedClient enhancedClient;
     private final DynamoDbTable<User> userTable;
+    // CAMBIO IMPORTANTE: La tabla de Booking ahora usa la clase unificada
     private final DynamoDbTable<Booking> bookingTable;
 
     public UserRepositoryImpl(DynamoDbEnhancedClient enhancedClient) {
         this.enhancedClient = enhancedClient;
         this.userTable = enhancedClient.table(DynamoDBConfig.TABLE_NAME, TableSchema.fromBean(User.class));
+        // CAMBIO IMPORTANTE: Usar la clase Booking unificada para el TableSchema
         this.bookingTable = enhancedClient.table(DynamoDBConfig.TABLE_NAME, TableSchema.fromBean(Booking.class));
     }
 
@@ -111,6 +115,8 @@ public class UserRepositoryImpl implements UserRepository {
         if (booking.getBookingId() == null || booking.getBookingId().isEmpty()) {
             booking.setBookingIdentifier(UUID.randomUUID().toString());
         } else {
+            // CAMBIO IMPORTANTE: Asegurarse de que PK, SK y itemType estén configurados
+            // para la estructura de tabla única
             booking.setBookingIdentifier(booking.getBookingId());
         }
         bookingTable.putItem(booking);
@@ -119,6 +125,7 @@ public class UserRepositoryImpl implements UserRepository {
 
     @Override
     public Optional<Booking> findBookingById(String bookingId) {
+        // CAMBIO IMPORTANTE: La PK y SK de Booking ya no son carId y startDate, sino BOOKING#<bookingId> y METADATA#<bookingId>
         Key key = Key.builder()
                 .partitionValue("BOOKING#" + bookingId)
                 .sortValue("METADATA#" + bookingId)
@@ -146,22 +153,10 @@ public class UserRepositoryImpl implements UserRepository {
 
     @Override
     public List<Booking> findBookingsByUserId(String userId) {
-        // Esta operación es más compleja y puede requerir un GSI.
-        // Asumiendo que has creado un GSI con PK = USER#<userId> y SK = BOOKING#<bookingId>
-        // Si no tienes un GSI, esta operación implicaría un Scan de toda la tabla y filtrar,
-        // lo cual es ineficiente para grandes volúmenes de datos.
+        // Esta operación sigue utilizando un SCAN con filtro por itemType y userId.
+        // Como se mencionó, para producción con muchos datos, se recomienda un GSI
+        // con userId como GSI Partition Key.
 
-        // Si tienes un GSI llamado "UserBookingsIndex" con PK='userId' y SK='bookingId'
-        // Puedes consultarlo así:
-        /*
-        return bookingTable.index("UserBookingsIndex").query(QueryConditional.keyEqualTo(Key.builder()
-                .partitionValue("USER#" + userId)
-                .build())).items().stream().collect(Collectors.toList());
-        */
-
-        // Si no tienes un GSI para esto y el PK de Booking es BOOKING#<bookingId>,
-        // la única forma es escanear y filtrar, lo cual es ineficiente para producción.
-        // Implementación con Scan para este ejemplo:
         ScanEnhancedRequest scanRequest = ScanEnhancedRequest.builder()
                 .filterExpression(
                         software.amazon.awssdk.enhanced.dynamodb.model.Expression.builder()
@@ -185,6 +180,7 @@ public class UserRepositoryImpl implements UserRepository {
         if (booking.getBookingId() == null || booking.getBookingId().isEmpty()) {
             throw new IllegalArgumentException("Booking ID must not be null for update operation.");
         }
+        // CAMBIO IMPORTANTE: Asegurarse de que PK, SK y itemType estén configurados antes de actualizar
         booking.setBookingIdentifier(booking.getBookingId());
         bookingTable.updateItem(booking);
         return booking;
@@ -192,6 +188,7 @@ public class UserRepositoryImpl implements UserRepository {
 
     @Override
     public void deleteBooking(String bookingId) {
+        // CAMBIO IMPORTANTE: La PK y SK de Booking ya no son carId y startDate, sino BOOKING#<bookingId> y METADATA#<bookingId>
         Key key = Key.builder()
                 .partitionValue("BOOKING#" + bookingId)
                 .sortValue("METADATA#" + bookingId)
