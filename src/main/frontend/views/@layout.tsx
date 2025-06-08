@@ -4,6 +4,15 @@ import { AppLayout, DrawerToggle, Icon, SideNav, SideNavItem } from '@vaadin/rea
 import { Suspense, useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 
+// IMPORTS NECESARIOS PARA REACT-QUERY
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+
+// Crea una instancia de QueryClient fuera del componente de layout.
+// Esto asegura que el cliente se cree una sola vez y se reutilice.
+const queryClient = new QueryClient();
+
+
 // Señal para el título del documento, utilizada por Vaadin
 const documentTitleSignal = signal('');
 effect(() => {
@@ -20,7 +29,7 @@ interface MenuItem {
   icon?: string; // Opcional: la ruta del icono (ej. 'line-awesome/svg/home-solid.svg')
 }
 
-export default function MainLayout() { // Este componente será renombrado a @layout.tsx
+export default function MainLayout() { // Este componente es tu @layout.tsx
   const currentTitle = useViewConfig()?.title; // Obtiene el título de la vista actual
   const navigate = useNavigate(); // Hook para la navegación programática
   const location = useLocation(); // Hook para obtener la ubicación actual
@@ -71,49 +80,52 @@ export default function MainLayout() { // Este componente será renombrado a @la
   ];
 
   return (
-    <AppLayout primarySection="drawer">
-      {/* Sección del cajón (Drawer) con el menú de navegación */}
-      <div slot="drawer" className="flex flex-col justify-between h-full p-m">
-        <header className="flex flex-col gap-m">
-          <span className="font-semibold text-l">My App</span>
-          <SideNav onNavigate={({ path }) => navigate(path!)} location={location}>
-            {menuItems.map((item) => (
-              <SideNavItem path={item.to} key={item.to}>
-                {item.icon ? <Icon src={item.icon} slot="prefix"></Icon> : <></>}
-                {item.title}
-              </SideNavItem>
-            ))}
-          </SideNav>
-        </header>
-      </div>
-
-      {/* Sección de la barra de navegación superior (Navbar) */}
-      <div slot="navbar" className="navbar-custom">
-        <DrawerToggle slot="navbar" aria-label="Menu toggle"></DrawerToggle>
-        <h1 className="navbar-title">{documentTitleSignal}</h1>
-        <div className="flex gap-m">
-          <button
-            className="theme-toggle-btn"
-            onClick={toggleDarkMode}
-          >
-            {isDarkMode ? 'Light Mode' : 'Dark Mode'}
-          </button>
-          <button
-            className="vintage-toggle-btn"
-            onClick={toggleVintageMode}
-          >
-            {isVintageMode ? 'Disable Vintage Mode' : 'Activate Vintage Mode'}
-          </button>
+    // ENVUELVE TODA LA AppLayout CON EL QueryClientProvider
+    <QueryClientProvider client={queryClient}>
+      <AppLayout primarySection="drawer">
+        {/* Sección del cajón (Drawer) con el menú de navegación */}
+        <div slot="drawer" className="flex flex-col justify-between h-full p-m">
+          <header className="flex flex-col gap-m">
+            <span className="font-semibold text-l">My App</span>
+            <SideNav onNavigate={({ path }) => navigate(path!)} location={location}>
+              {menuItems.map((item) => (
+                <SideNavItem path={item.to} key={item.to}>
+                  {item.icon ? <Icon src={item.icon} slot="prefix"></Icon> : <></>}
+                  {item.title}
+                </SideNavItem>
+              ))}
+            </SideNav>
+          </header>
         </div>
-      </div>
 
-      {/* Contenido principal de la aplicación, donde se renderizan las vistas */}
-      <Suspense>
-        <Outlet />
-      </Suspense>
+        {/* Sección de la barra de navegación superior (Navbar) */}
+        <div slot="navbar" className="navbar-custom">
+          <DrawerToggle slot="navbar" aria-label="Menu toggle"></DrawerToggle>
+          <h1 className="navbar-title">{documentTitleSignal}</h1>
+          <div className="flex gap-m">
+            <button
+              className="theme-toggle-btn"
+              onClick={toggleDarkMode}
+            >
+              {isDarkMode ? 'Light Mode' : 'Dark Mode'}
+            </button>
+            <button
+              className="vintage-toggle-btn"
+              onClick={toggleVintageMode}
+            >
+              {isVintageMode ? 'Disable Vintage Mode' : 'Activate Vintage Mode'}
+            </button>
+          </div>
+        </div>
 
-      {/* Elemento tv-static para el efecto visual del modo vintage (controlado por CSS) */}
-      <div className="tv-static"></div>
-    </AppLayout>
+        {/* Contenido principal de la aplicación, donde se renderizan las vistas */}
+        <Suspense>
+          <Outlet />
+        </Suspense>
+
+        {/* Elemento tv-static para el efecto visual del modo vintage (controlado por CSS) */}
+        <div className="tv-static"></div>
+      </AppLayout>
+    </QueryClientProvider>
   );
 }

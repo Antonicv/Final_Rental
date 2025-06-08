@@ -4,6 +4,7 @@
   "type": "module",
   "dependencies": {
     "@polymer/polymer": "3.5.2",
+    "@tanstack/react-query": "^5.80.6",
     "@vaadin/bundles": "24.7.3",
     "@vaadin/common-frontend": "0.0.19",
     "@vaadin/hilla-file-router": "24.7.2",
@@ -125,7 +126,7 @@
       "workbox-core": "7.3.0",
       "workbox-precaching": "7.3.0"
     },
-    "hash": "679a51f61e71a9d6b1fd91da555e7a85f6c366653a6fbcfb842c16577071f50b"
+    "hash": "d8b3000914193b96db3d223d24a2c691ce3d15a5d5d73786a7b08d9e130452a7"
   },
   "overrides": {
     "@vaadin/bundles": "$@vaadin/bundles",
@@ -165,6 +166,7 @@
     "@vaadin/vaadin-lumo-styles": "$@vaadin/vaadin-lumo-styles",
     "@vaadin/vaadin-material-styles": "$@vaadin/vaadin-material-styles",
     "react-router": "$react-router",
-    "react-router-dom": "$react-router-dom"
+    "react-router-dom": "$react-router-dom",
+    "@tanstack/react-query": "$@tanstack/react-query"
   }
 }
