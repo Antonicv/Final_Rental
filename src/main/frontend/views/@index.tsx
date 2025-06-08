@@ -100,39 +100,34 @@ export default function HomeView() {
 
   // Manejador para el botón "Buscar Disponibilidad" dentro del diálogo
   const handleAvailabilitySearch = async () => {
-    setSearchMessage(null); // Limpiar mensajes anteriores
-    // Verifica que se hayan seleccionado fechas y una delegación
-    if (startDate && endDate && selectedDelegationId) { // Ahora verificamos selectedDelegationId
-      console.log(`Buscando disponibilidad para la delegación ID: ${selectedDelegationId}`);
-      console.log(`Desde: ${startDate} Hasta: ${endDate}`);
+  setSearchMessage(null);
+  if (startDate && endDate && selectedDelegationId) {
+    try {
+     const carsResult = await DelegationEndpoint.getAvailableCars(selectedDelegationId, startDate, endDate, isVintageMode);
 
-      // Actualizar el label de la delegación seleccionada para mostrarlo en el diálogo de resultados
-      const currentDelegation = delegationOptions.find(opt => opt.value === selectedDelegationId);
-      setSelectedDelegationLabel(currentDelegation ? currentDelegation.label : null);
+// Filtrar los undefined antes de actualizar el estado
+const cars = (carsResult ?? []).filter((car): car is Car => car !== undefined && car !== null);
 
-      try {
-        // Llama al nuevo endpoint del backend con delegationId y isVintageMode
-        const cars = await DelegationEndpoint.getAvailableCars(selectedDelegationId, startDate, endDate, isVintageMode);
-        setAvailableCarsResult(cars); // Almacena los coches disponibles en el estado
-        setIsCalendarOpen(false); // Cierra el diálogo del calendario
-        setIsResultsDialogOpen(true); // Abre el diálogo de resultados
-        if (cars.length === 0) {
-          setSearchMessage('No se encontraron coches disponibles para la delegación y fechas seleccionadas.');
-        } else {
-          setSearchMessage(null); // Limpiar mensaje si hay resultados
-        }
-      } catch (error) {
-        console.error('Error al buscar disponibilidad:', error); // Log de error si falla la búsqueda
-        setAvailableCarsResult([]); // En caso de error, la lista de resultados estará vacía
-        setIsCalendarOpen(false); // Cierra el diálogo del calendario
-        setIsResultsDialogOpen(true); // Abre el diálogo de resultados para mostrar el mensaje de error
-        setSearchMessage('Hubo un error al buscar disponibilidad. Por favor, inténtalo de nuevo más tarde.');
+setAvailableCarsResult(cars);
+      setIsCalendarOpen(false);
+      setIsResultsDialogOpen(true);
+
+      if (cars.length === 0) {
+        setSearchMessage('No se encontraron coches disponibles para la delegación y fechas seleccionadas.');
+      } else {
+        setSearchMessage(null);
       }
-    } else {
-      setSearchMessage('Por favor, selecciona ambas fechas y una delegación.'); // Advertencia si faltan datos
-      // Mantener el diálogo del calendario abierto para que el usuario complete los campos
+    } catch (error) {
+      console.error('Error al buscar disponibilidad:', error);
+      setAvailableCarsResult([]);
+      setIsCalendarOpen(false);
+      setIsResultsDialogOpen(true);
+      setSearchMessage('Hubo un error al buscar disponibilidad. Por favor, inténtalo de nuevo más tarde.');
     }
-  };
+  } else {
+    setSearchMessage('Por favor, selecciona ambas fechas y una delegación.');
+  }
+};
 
   // Manejador para reservar un coche
   const handleBookCar = async (car: Car) => {
@@ -182,21 +177,24 @@ export default function HomeView() {
 
   // Función para generar URL de imagen de placeholder o API externa
   const getCarThumbnailImageUrl = (car: Car) => {
-    // Determina si el coche actual es vintage (para la visualización de la imagen)
-    const isCurrentCarVintage = car.year < 2000;
+  // Verificamos que car tenga las propiedades necesarias
+  if (!car.make || !car.model) {
+    // Retornar una imagen por defecto o placeholder si no tiene datos
+    return 'https://placehold.co/150x100/E0E0E0/333333?text=No+Image';
+  }
 
-    if (isVintageMode && isCurrentCarVintage) {
-      // Ruta local para coches vintage en modo vintage
-      const localImagePath = `/images/${sanitizeFilenamePart(car.make)}_${sanitizeFilenamePart(car.model)}.webp`;
-      console.log("DEBUG: Generated local vintage car image URL:", localImagePath);
-      return localImagePath;
-    } else {
-      // API externa para coches modernos o si no es modo vintage
-      const imageUrl = `https://cdn.imagin.studio/getimage?customer=img&make=${encodeURIComponent(car.make)}&modelFamily=${encodeURIComponent(car.model)}&paintId=${encodeURIComponent(car.color || '')}&zoomType=fullscreen`;
-      console.log("DEBUG: Generated external modern car image URL:", imageUrl);
-      return imageUrl;
-    }
-  };
+  const isCurrentCarVintage = car.year < 2000;
+
+  if (isVintageMode && isCurrentCarVintage) {
+    const localImagePath = `/images/${sanitizeFilenamePart(car.make)}_${sanitizeFilenamePart(car.model)}.webp`;
+    console.log("DEBUG: Generated local vintage car image URL:", localImagePath);
+    return localImagePath;
+  } else {
+    const imageUrl = `https://cdn.imagin.studio/getimage?customer=img&make=${encodeURIComponent(car.make)}&modelFamily=${encodeURIComponent(car.model)}&paintId=${encodeURIComponent(car.color || '')}&zoomType=fullscreen`;
+    console.log("DEBUG: Generated external modern car image URL:", imageUrl);
+    return imageUrl;
+  }
+};
 
 
   return (

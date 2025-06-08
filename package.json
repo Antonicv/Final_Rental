@@ -24,6 +24,7 @@
     "@vaadin/vaadin-usage-statistics": "2.1.3",
     "construct-style-sheets-polyfill": "3.1.0",
     "date-fns": "2.29.3",
+    "leaflet": "^1.9.4",
     "lit": "3.2.1",
     "proj4": "2.15.0",
     "react": "18.3.1",
@@ -36,6 +37,7 @@
     "@preact/signals-react-transform": "0.5.1",
     "@rollup/plugin-replace": "6.0.2",
     "@rollup/pluginutils": "5.1.4",
+    "@types/leaflet": "^1.9.18",
     "@types/react": "18.3.20",
     "@types/react-dom": "18.3.6",
     "@vaadin/hilla-generator-cli": "24.7.2",
@@ -125,7 +127,7 @@
       "workbox-core": "7.3.0",
       "workbox-precaching": "7.3.0"
     },
-    "hash": "679a51f61e71a9d6b1fd91da555e7a85f6c366653a6fbcfb842c16577071f50b"
+    "hash": "2f5a82a1c4ee3083ddb9c632f4feb58d416c82f5f8549a362a8adb070e1ca9af"
   },
   "overrides": {
     "@vaadin/bundles": "$@vaadin/bundles",
@@ -165,6 +167,7 @@
     "@vaadin/vaadin-lumo-styles": "$@vaadin/vaadin-lumo-styles",
     "@vaadin/vaadin-material-styles": "$@vaadin/vaadin-material-styles",
     "react-router": "$react-router",
-    "react-router-dom": "$react-router-dom"
+    "react-router-dom": "$react-router-dom",
+    "leaflet": "$leaflet"
   }
 }
