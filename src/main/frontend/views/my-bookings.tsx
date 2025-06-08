@@ -94,18 +94,18 @@ export default function BookingsView() {
         console.log(`DEBUG (BookingsView): Delegación cargada: ID=${d.delegationId}, Nombre=${d.name}, Ciudad=${d.city}, Dirección=${d.adress}, Gestor=${d.manager}, Teléfono=${d.telf}, Lat=${d.lat}, Long=${d.longVal}, CantidadCoches=${d.carQuantity}`);
       });
 
-      // 3. Cargar todas las reservas
       const bookingsResult = await DelegationEndpoint.getAllBookings();
-      const validBookings = Array.isArray(bookingsResult) ? bookingsResult : [];
-      setAllBookings(validBookings); // Almacena todas las reservas
-      console.log(`DEBUG (BookingsView): Se cargaron ${validBookings.length} reservas.`);
+const validBookings = Array.isArray(bookingsResult) 
+  ? bookingsResult.filter((b): b is Booking => b !== undefined) 
+  : [];
+setAllBookings(validBookings); // Ahora solo Booking[]
+console.log(`DEBUG (BookingsView): Se cargaron ${validBookings.length} reservas.`);
 
-      // Aplicar filtro si userIdToFilter está presente
-      const currentFilteredBookings = userIdToFilter
-        ? validBookings.filter(booking => booking.userId === userIdToFilter)
-        : validBookings;
-      setFilteredBookings(currentFilteredBookings); // Actualiza las reservas filtradas
-
+// Aplicar filtro si userIdToFilter está presente
+const currentFilteredBookings = userIdToFilter
+  ? validBookings.filter(booking => booking.userId === userIdToFilter)
+  : validBookings;
+setFilteredBookings(currentFilteredBookings);
       if (currentFilteredBookings.length === 0) {
         if (userIdToFilter) {
             setError(`No hay reservas para el usuario "${userIdToFilter}".`);
