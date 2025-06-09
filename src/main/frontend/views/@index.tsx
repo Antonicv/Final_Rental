@@ -100,34 +100,40 @@ export default function HomeView() {
 
   // Manejador para el botón "Buscar Disponibilidad" dentro del diálogo
   const handleAvailabilitySearch = async () => {
-  setSearchMessage(null);
-  if (startDate && endDate && selectedDelegationId) {
-    try {
-     const carsResult = await DelegationEndpoint.getAvailableCars(selectedDelegationId, startDate, endDate, isVintageMode);
-
-// Filtrar los undefined antes de actualizar el estado
-const cars = (carsResult ?? []).filter((car): car is Car => car !== undefined && car !== null);
-
-setAvailableCarsResult(cars);
-      setIsCalendarOpen(false);
-      setIsResultsDialogOpen(true);
-
-      if (cars.length === 0) {
-        setSearchMessage('No se encontraron coches disponibles para la delegación y fechas seleccionadas.');
-      } else {
-        setSearchMessage(null);
+    setSearchMessage(null);
+    if (startDate && endDate && selectedDelegationId) {
+      // Basic date validation
+      if (new Date(startDate) > new Date(endDate)) {
+        setSearchMessage('La fecha de fin no puede ser anterior a la fecha de inicio.');
+        return;
       }
-    } catch (error) {
-      console.error('Error al buscar disponibilidad:', error);
-      setAvailableCarsResult([]);
-      setIsCalendarOpen(false);
-      setIsResultsDialogOpen(true);
-      setSearchMessage('Hubo un error al buscar disponibilidad. Por favor, inténtalo de nuevo más tarde.');
+
+      try {
+        const carsResult = await DelegationEndpoint.getAvailableCars(selectedDelegationId, startDate, endDate, isVintageMode);
+
+        // Filtrar los undefined antes de actualizar el estado
+        const cars = (carsResult ?? []).filter((car): car is Car => car !== undefined && car !== null);
+
+        setAvailableCarsResult(cars);
+        setIsCalendarOpen(false);
+        setIsResultsDialogOpen(true);
+
+        if (cars.length === 0) {
+          setSearchMessage('No se encontraron coches disponibles para la delegación y fechas seleccionadas.');
+        } else {
+          setSearchMessage(null);
+        }
+      } catch (error) {
+        console.error('Error al buscar disponibilidad:', error);
+        setAvailableCarsResult([]);
+        setIsCalendarOpen(false);
+        setIsResultsDialogOpen(true);
+        setSearchMessage('Hubo un error al buscar disponibilidad. Por favor, inténtalo de nuevo más tarde.');
+      }
+    } else {
+      setSearchMessage('Por favor, selecciona ambas fechas y una delegación.');
     }
-  } else {
-    setSearchMessage('Por favor, selecciona ambas fechas y una delegación.');
-  }
-};
+  };
 
   // Manejador para reservar un coche
   const handleBookCar = async (car: Car) => {
@@ -177,25 +183,33 @@ setAvailableCarsResult(cars);
 
   // Función para generar URL de imagen de placeholder o API externa
   const getCarThumbnailImageUrl = (car: Car) => {
-  // Verificamos que car tenga las propiedades necesarias
-  if (!car.make || !car.model) {
-    // Retornar una imagen por defecto o placeholder si no tiene datos
-    return 'https://placehold.co/150x100/E0E0E0/333333?text=No+Image';
-  }
+    // Verificamos que car tenga las propiedades necesarias
+    if (!car.make || !car.model) {
+      // Retornar una imagen por defecto o placeholder si no tiene datos
+      return 'https://placehold.co/150x100/E0E0E0/333333?text=No+Image';
+    }
 
-  const isCurrentCarVintage = car.year < 2000;
+    const isCarVintageBasedOnYear = car.year < 2000; // Check if the car itself is vintage based on year
 
-  if (isVintageMode && isCurrentCarVintage) {
-    const localImagePath = `/images/${sanitizeFilenamePart(car.make)}_${sanitizeFilenamePart(car.model)}.webp`;
-    console.log("DEBUG: Generated local vintage car image URL:", localImagePath);
-    return localImagePath;
-  } else {
-    const imageUrl = `https://cdn.imagin.studio/getimage?customer=img&make=${encodeURIComponent(car.make)}&modelFamily=${encodeURIComponent(car.model)}&paintId=${encodeURIComponent(car.color || '')}&zoomType=fullscreen`;
-    console.log("DEBUG: Generated external modern car image URL:", imageUrl);
-    return imageUrl;
-  }
-};
+    if (isVintageMode && isCarVintageBasedOnYear) { // Only use local path if vintage mode is ON AND car is vintage by year
+      const localImagePath = `/images/${sanitizeFilenamePart(car.make)}_${sanitizeFilenamePart(car.model)}.webp`;
+      console.log("DEBUG: Generated local vintage car image URL:", localImagePath);
+      return localImagePath;
+    } else {
+      const imageUrl = `https://cdn.imagin.studio/getimage?customer=img&make=${encodeURIComponent(car.make)}&modelFamily=${encodeURIComponent(car.model)}&paintId=${encodeURIComponent(car.color || '')}&zoomType=fullscreen`;
+      console.log("DEBUG: Generated external modern car image URL:", imageUrl);
+      return imageUrl;
+    }
+  };
 
+  // Get today's date in YYYY-MM-DD format
+  const getTodayDateString = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = (today.getMonth() + 1).toString().padStart(2, '0');
+    const day = today.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   return (
     <div className="flex flex-col h-full items-center justify-center p-l text-center box-border">
@@ -268,12 +282,14 @@ setAvailableCarsResult(cars);
             label="Fecha de Inicio"
             value={startDate || ''}
             onValueChanged={({ detail }) => setStartDate(detail.value)}
+            min={getTodayDateString()} // Prevent selecting past dates
             style={{ width: '100%' }}
           />
           <DatePicker
             label="Fecha de Fin"
             value={endDate || ''}
             onValueChanged={({ detail }) => setEndDate(detail.value)}
+            min={startDate || getTodayDateString()} // Prevent selecting past dates or before start date
             style={{ width: '100%' }}
           />
           <Select
@@ -322,7 +338,9 @@ setAvailableCarsResult(cars);
                       }}
                     />
                     <span>
-                      <strong>{car.make} {car.model}</strong> ({car.year}) - {car.color} - {car.price} €
+                      <strong>{car.make} {car.model}</strong> ({car.year}) - {car.color} -{' '}
+                      {/* MODIFICACIÓN CLAVE AQUÍ: Cambia el símbolo según isVintageMode */}
+                      {isVintageMode ? `${car.price?.toFixed(2) || 'N/A'} Pts` : `${car.price?.toFixed(2) || 'N/A'} €`}
                     </span>
                     <Button theme="primary" onClick={() => handleBookCar(car)} style={{ marginTop: '1rem' }}>
                       Reservar
