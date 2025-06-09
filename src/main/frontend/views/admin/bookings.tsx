@@ -1,3 +1,4 @@
+// src/views/Billing.tsx
 import { ViewConfig } from '@vaadin/hilla-file-router/types.js';
 import { useState } from 'react';
 import { Grid } from '@vaadin/react-components/Grid';
@@ -16,7 +17,6 @@ type Invoice = {
 };
 
 export default function Billing() {
-  // Datos simulados
   const [invoices, setInvoices] = useState<Invoice[]>([
     {
       id: 'INV-1001',
@@ -39,16 +39,8 @@ export default function Billing() {
       paymentStatus: 'Overdue',
       paymentMethod: 'Bank Transfer',
     },
-    {
-      id: 'INV-1003',
-      date: '2025-04-20',
-      amount: 99.99,
-      paymentStatus: 'Overdue',
-      paymentMethod: 'Bank Transfer',
-    },
   ]);
 
-  // Función simulada para marcar una factura como pagada
   const markAsPaid = (id: string) => {
     setInvoices((prev) =>
       prev.map((inv) =>
@@ -63,13 +55,13 @@ export default function Billing() {
 
   return (
     <div>
-      <h2>Facturas</h2>
-      <Grid items={invoices}>
+      <h2 className="text-2xl font-semibold mb-4">Facturas</h2>
+      <Grid items={invoices} theme="row-stripes">
         <GridColumn path="id" header="Factura ID" />
         <GridColumn path="date" header="Fecha" />
         <GridColumn
           header="Monto (€)"
-          renderer={({ item }) => item.amount.toFixed(2)}
+          renderer={({ item }) => <span>{item.amount.toFixed(2)}</span>}
         />
         <GridColumn path="paymentStatus" header="Estado de Pago" />
         <GridColumn path="paymentMethod" header="Método de Pago" />
@@ -77,9 +69,14 @@ export default function Billing() {
           header="Acciones"
           renderer={({ item }) =>
             item.paymentStatus !== 'Paid' ? (
-              <button onClick={() => markAsPaid(item.id)}>Marcar como Pagada</button>
+              <button
+                onClick={() => markAsPaid(item.id)}
+                className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+              >
+                Marcar como Pagada
+              </button>
             ) : (
-              <span>Pagada</span>
+              <span className="text-green-600 font-semibold">Pagada</span>
             )
           }
         />

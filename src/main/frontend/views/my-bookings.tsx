@@ -1,65 +1,60 @@
 import { ViewConfig } from '@vaadin/hilla-file-router/types.js';
 import { useEffect, useState } from 'react';
-import { Button } from '@vaadin/react-components/Button'; // Importar Button para las acciones
-import { TextField } from '@vaadin/react-components/TextField'; // Importar TextField para el filtro
+import { Button } from '@vaadin/react-components/Button';
+import { TextField } from '@vaadin/react-components/TextField';
 import { DelegationEndpoint } from 'Frontend/generated/endpoints';
 import Booking from 'Frontend/generated/dev/renting/delegations/Booking';
-import Car from 'Frontend/generated/dev/renting/delegations/Car'; // Importar Car para tipado
-import Delegation from 'Frontend/generated/dev/renting/delegations/Delegation'; // Importar Delegation para tipado
+import Car from 'Frontend/generated/dev/renting/delegations/Car';
+import Delegation from 'Frontend/generated/dev/renting/delegations/Delegation';
+import html2pdf from 'html2pdf.js'; // IMPORTANTE: Importa la librería
 
-
-// Configuración de la vista para el router de Hilla
+// View configuration for the Hilla router
 export const config: ViewConfig = {
-  title: 'Mis Reservas', // Mantén el título
+  title: 'Mis Reservas',
 };
 
-// Función de ayuda para normalizar cadenas para nombres de archivo
-// Elimina acentos, diacríticos, reemplaza espacios con guiones bajos y limpia caracteres no permitidos.
+// Helper function to sanitize strings for filename parts
 function sanitizeFilenamePart(text: string): string {
   return text
-    .normalize("NFD") // Normaliza a la forma de descomposición canónica (ej. 'ë' -> 'e' + '¨')
-    .replace(/[\u0300-\u036f]/g, "") // Elimina las marcas diacríticas (acentos, diéresis, etc.)
-    .replace(/\s+/g, '_') // Reemplaza uno o más espacios con un guion bajo
-    .replace(/[^a-zA-Z0-9_.-]/g, ''); // Elimina cualquier carácter que no sea alfanumérico, guion bajo, punto o guion
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, '_')
+    .replace(/[^a-zA-Z0-9_.-]/g, '');
 }
 
-// Función de guarda de tipo para asegurar que el objeto Car tiene propiedades 'make', 'model' y 'year'
+// Type guard function to ensure a Car object has 'make', 'model', and 'year' properties
 function isCarWithMakeAndModel(car: Car | undefined): car is Car & { make: string; model: string; year: number; color?: string; price?: number; rented?: boolean; } {
   return !!car && typeof car.make === 'string' && typeof car.model === 'string' && typeof car.year === 'number';
 }
 
-// Función para generar URL de imagen (condicional: local para vintage, externa para moderno)
+// Function to generate car image URL (local for vintage, external for modern)
 const getCarThumbnailImageUrl = (car: Car) => {
-  const isCurrentCarVintage = car.year < 2000; // Determina si el coche es vintage
+  const isCurrentCarVintage = car.year < 2000;
 
   if (isCurrentCarVintage) {
-    // Ruta local para coches vintage, siempre
     const localImagePath = `/images/${sanitizeFilenamePart(car.make || '')}_${sanitizeFilenamePart(car.model || '')}.webp`;
     console.log("DEBUG (BookingsView): Generated local vintage car image URL:", localImagePath);
     return localImagePath;
   } else {
-    // API externa para coches modernos, siempre
     const imageUrl = `https://cdn.imagin.studio/getimage?customer=img&make=${encodeURIComponent(car.make || '')}&modelFamily=${encodeURIComponent(car.model || '')}&paintId=${encodeURIComponent(car.color || '')}&zoomType=fullscreen`;
     console.log("DEBUG (BookingsView): Generated external modern car image URL:", imageUrl);
     return imageUrl;
   }
 };
 
-// Componente principal de la vista de Reservas
+// Main Bookings View Component
 export default function BookingsView() {
   const [allBookings, setAllBookings] = useState<Booking[]>([]);
-  const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]); // Nuevo estado para reservas filtradas
-  const [allCars, setAllCars] = useState<Car[]>([]); // Estado para todos los coches
-  const [allDelegations, setAllDelegations] = useState<Delegation[]>([]); // Estado para todas las delegaciones
+  const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
+  const [allCars, setAllCars] = useState<Car[]>([]);
+  const [allDelegations, setAllDelegations] = useState<Delegation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Mantener isVintageMode para la lógica de precio
   const [isVintageMode, setIsVintageMode] = useState(document.documentElement.classList.contains('vintage-mode'));
-  // Nuevo estado para el filtro de usuario
   const [filterUserId, setFilterUserId] = useState<string>('');
 
 
-  // useEffect para escuchar cambios en la clase 'vintage-mode' del elemento <html>
+  // useEffect to listen for changes in the 'vintage-mode' class on the <html> element
   useEffect(() => {
     const htmlElement = document.documentElement;
     const observer = new MutationObserver(() => {
@@ -70,137 +65,172 @@ export default function BookingsView() {
     return () => observer.disconnect();
   }, []);
 
-  // Función para cargar todos los datos (reservas, coches, delegaciones)
-  // Ahora acepta un userId para filtrar
+  // Function to load all data (bookings, cars, delegations)
   const fetchAllData = async (userIdToFilter: string | null = null) => {
-    console.log("DEBUG (BookingsView): Iniciando la carga de todos los datos...");
+    console.log("DEBUG (BookingsView): Starting data fetch...");
     try {
       setLoading(true);
       setError(null);
 
-      // 1. Cargar todos los coches
+      // 1. Load all cars
       const carsResult = await DelegationEndpoint.getAllCars();
       const validCars = (carsResult ?? []).filter(isCarWithMakeAndModel);
       setAllCars(validCars);
-      console.log(`DEBUG (BookingsView): Se cargaron ${validCars.length} coches.`);
+      console.log(`DEBUG (BookingsView): Loaded ${validCars.length} cars.`);
 
-      // 2. Cargar todas las delegaciones de perfil
+      // 2. Load all profile delegations
       const delegationsResult = await DelegationEndpoint.getAllProfileDelegations();
       const validDelegations = (delegationsResult ?? []).filter((d): d is Delegation => d !== undefined && d !== null);
       setAllDelegations(validDelegations);
-      console.log(`DEBUG (BookingsView): Se cargaron ${validDelegations.length} delegaciones.`);
-      // DEBUG: Log detallado de las delegaciones cargadas
+      console.log(`DEBUG (BookingsView): Loaded ${validDelegations.length} delegations.`);
       validDelegations.forEach(d => {
-        console.log(`DEBUG (BookingsView): Delegación cargada: ID=${d.delegationId}, Nombre=${d.name}, Ciudad=${d.city}, Dirección=${d.adress}, Gestor=${d.manager}, Teléfono=${d.telf}, Lat=${d.lat}, Long=${d.longVal}, CantidadCoches=${d.carQuantity}`);
+        console.log(`DEBUG (BookingsView): Delegation loaded: ID=${d.delegationId}, Name=${d.name}, City=${d.city}, Address=${d.adress}, Manager=${d.manager}, Phone=${d.telf}, Lat=${d.lat}, Long=${d.longVal}, CarQuantity=${d.carQuantity}`);
       });
 
+      // 3. Load all bookings
       const bookingsResult = await DelegationEndpoint.getAllBookings();
-const validBookings = Array.isArray(bookingsResult) 
-  ? bookingsResult.filter((b): b is Booking => b !== undefined) 
-  : [];
-setAllBookings(validBookings); // Ahora solo Booking[]
-console.log(`DEBUG (BookingsView): Se cargaron ${validBookings.length} reservas.`);
+      const validBookings = Array.isArray(bookingsResult)
+        ? bookingsResult.filter((b): b is Booking => b !== undefined)
+        : [];
+      setAllBookings(validBookings);
+      console.log(`DEBUG (BookingsView): Loaded ${validBookings.length} bookings.`);
 
-// Aplicar filtro si userIdToFilter está presente
-const currentFilteredBookings = userIdToFilter
-  ? validBookings.filter(booking => booking.userId === userIdToFilter)
-  : validBookings;
-setFilteredBookings(currentFilteredBookings);
+      // Apply filter if userIdToFilter is present
+      const currentFilteredBookings = userIdToFilter
+        ? validBookings.filter(booking => booking.userId === userIdToFilter)
+        : validBookings;
+      setFilteredBookings(currentFilteredBookings);
       if (currentFilteredBookings.length === 0) {
         if (userIdToFilter) {
-            setError(`No hay reservas para el usuario "${userIdToFilter}".`);
+          setError(`No bookings found for user "${userIdToFilter}".`);
         } else {
-            setError('No hay reservas registradas.');
+          setError('No bookings registered.');
         }
-        console.log("DEBUG (BookingsView): No se encontraron reservas.");
+        console.log("DEBUG (BookingsView): No bookings found.");
       } else {
         setError(null);
       }
     } catch (e) {
-      console.error('ERROR (BookingsView): Error al obtener todos los datos:', e);
-      setError('Hubo un error al cargar tus reservas. Por favor, inténtalo de nuevo más tarde.');
+      console.error('ERROR (BookingsView): Error fetching all data:', e);
+      setError('There was an error loading your bookings. Please try again later.');
       setAllBookings([]);
       setFilteredBookings([]);
       setAllCars([]);
       setAllDelegations([]);
     } finally {
       setLoading(false);
-      console.log("DEBUG (BookingsView): Carga de todos los datos finalizada.");
+      console.log("DEBUG (BookingsView): Data fetch completed.");
     }
   };
 
-  // useEffect para cargar los datos al montar el componente (sin filtro inicial)
+  // useEffect to load data on component mount (no initial filter)
   useEffect(() => {
     fetchAllData();
-  }, []); // Dependencias vacías para que se ejecute solo al montar
+  }, []);
 
-  // Manejador para el botón de filtro por usuario
+  // Handler for user filter button
   const handleFilterByUser = () => {
     fetchAllData(filterUserId);
   };
 
-  // Manejador para el botón de mostrar todas las reservas
+  // Handler for show all bookings button
   const handleShowAllBookings = () => {
-    setFilterUserId(''); // Limpiar el campo de filtro
-    fetchAllData(null); // Mostrar todas las reservas
+    setFilterUserId(''); // Clear the filter field
+    fetchAllData(null); // Show all bookings
   };
 
-  // Función para obtener los detalles del coche a partir de su carId (operation)
+  // Function to get car details from carId (operation)
   const getCarDetails = (carId: string) => {
     return allCars.find(car => car.operation === carId);
   };
 
-  // Función para obtener los detalles de la delegación
+  // Function to get delegation details
   const getDelegationDetails = (delegationId: string) => {
     return allDelegations.find(delegation => delegation.delegationId === delegationId);
   };
 
-  // Manejador para borrar una reserva
+  // Handler to delete a booking
   const handleDeleteBooking = async (booking: Booking) => {
     if (!booking.carId || !booking.startDate) {
-      setError('Error: No se puede borrar la reserva. Faltan datos clave (carId o startDate).');
+      setError('Error: Cannot delete booking. Missing key data (carId or startDate).');
       return;
     }
-    // Usar un modal personalizado en lugar de window.confirm
-    // const confirmDelete = window.confirm(`¿Estás seguro de que quieres borrar la reserva del coche ${booking.carId} para el ${booking.startDate}?`);
-    // if (confirmDelete) {
-    //   ...
-    // }
-    // Por ahora, para evitar el bloqueo, usaremos un confirm simple en la consola
-    console.log(`DEBUG (Frontend): Attempting to delete booking with carId: "${booking.carId}" and startDate: "${booking.startDate}"`); // Nuevo log
-    const confirmed = true; // Cambiar a false para probar la cancelación
+    console.log(`DEBUG (Frontend): Attempting to delete booking with carId: "${booking.carId}" and startDate: "${booking.startDate}"`);
+    const confirmed = true; // Replace with a custom modal confirmation
 
     if (confirmed) {
       try {
-        // Llama al endpoint de borrado en el backend
         await DelegationEndpoint.deleteBooking(booking.carId, booking.startDate);
-        setError(`Reserva ${booking.bookingId} borrada con éxito.`);
-        // Recargar todas las reservas para actualizar la lista, aplicando el filtro si existe
+        setError(`Booking ${booking.bookingId} deleted successfully.`);
+        // Reload all bookings to update the list, applying the filter if it exists
         await fetchAllData(filterUserId || null);
       } catch (e) {
-        console.error('ERROR (BookingsView): Error al borrar la reserva:', e);
-        setError('Hubo un error al borrar la reserva. Por favor, inténtalo de nuevo.');
+        console.error('ERROR (BookingsView): Error deleting booking:', e);
+        setError('There was an error deleting the booking. Please try again.');
       }
     }
   };
 
-  // Manejador para modificar una reserva (placeholder)
+  // Handler to modify a booking (placeholder)
   const handleModifyBooking = (booking: Booking) => {
-    // Aquí podrías abrir un diálogo o navegar a un formulario de edición
-    // con los datos de la reserva pre-rellenados.
-    setError(`Funcionalidad de modificar reserva para ${booking.bookingId} no implementada aún.`);
-    console.log('Modificar reserva:', booking);
+    setError(`Modify booking functionality for ${booking.bookingId} not yet implemented.`);
+    console.log('Modify booking:', booking);
   };
 
-  // Definir la tasa de conversión de Euro a Peseta
+  // --- NUEVA FUNCIÓN PARA DESCARGAR PDF DE LA RESERVA ---
+  const handleDownloadPdf = async (booking: Booking) => {
+    console.log('Generating PDF for booking:', booking);
+
+    // 1. Encuentra el elemento HTML de la reserva específica.
+    const bookingElement = document.querySelector(`li[data-booking-id="${booking.bookingId}"]`);
+
+    if (bookingElement) {
+      setError(null); // Clear any previous errors
+
+      // Opcional: Clona el nodo para limpiarlo de botones y CSS no deseado antes de generar el PDF
+      // Esto asegura que solo el contenido visible se convierta y no los botones de acción.
+      const clonedElement = bookingElement.cloneNode(true) as HTMLElement;
+
+      // Eliminar los botones de acción del clon para que no aparezcan en el PDF
+      const buttonsDiv = clonedElement.querySelector('.print-buttons');
+      if (buttonsDiv) {
+        buttonsDiv.remove();
+      }
+
+      // Opciones para html2pdf
+      const pdfOptions = {
+        margin: 10,
+        filename: `Reserva_${booking.bookingId}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true }, // scale para mejor calidad, useCORS para imágenes externas
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      try {
+        // Genera el PDF y lo descarga
+        await html2pdf().from(clonedElement).set(pdfOptions).save();
+        setError(`PDF de la reserva ${booking.bookingId} generado y descargado con éxito.`);
+      } catch (e) {
+        console.error('ERROR (BookingsView): Error generating PDF:', e);
+        setError('Hubo un error al generar el PDF de la reserva. Por favor, inténtalo de nuevo.');
+      }
+
+    } else {
+      console.error('ERROR (BookingsView): Could not find booking element for PDF generation with ID:', booking.bookingId);
+      setError('No se pudo encontrar la reserva para generar el PDF. Por favor, inténtalo de nuevo.');
+    }
+  };
+  // --- FIN NUEVA FUNCIÓN ---
+
+  // Define the Euro to Peseta conversion rate
   const EUR_TO_PTS_RATE = 166.386;
 
   return (
     <div className="flex flex-col h-full items-center p-l text-center box-border">
       <h2 className="text-2xl font-bold mb-4">Mis Reservas</h2>
 
-      {/* Sección de filtro por usuario */}
-      <div className="flex gap-2 mb-4 items-end">
+      {/* User filter section */}
+      <div className="flex gap-2 mb-4 items-end filter-section">
         <TextField
           label="Filtrar por ID de Usuario"
           placeholder="Ej: USER#001"
@@ -223,33 +253,30 @@ setFilteredBookings(currentFilteredBookings);
         <div className="text-red-600 font-bold mt-4">{error}</div>
       )}
 
-      {!loading && !error && filteredBookings.length === 0 && ( // Usar filteredBookings
+      {!loading && !error && filteredBookings.length === 0 && (
         <p className="text-gray-600 mt-4">No tienes reservas registradas {filterUserId ? `para el usuario "${filterUserId}"` : ''}.</p>
       )}
 
-      {!loading && !error && filteredBookings.length > 0 && ( // Usar filteredBookings
-        <div className="w-full max-w-2xl text-left">
+      {!loading && !error && filteredBookings.length > 0 && (
+        <div className="w-full max-w-5xl text-left">
           <ul className="list-none p-0">
-            {filteredBookings.map(booking => { // Iterar sobre filteredBookings
+            {filteredBookings.map(booking => {
               const car = getCarDetails(booking.carId || '');
               const delegation = getDelegationDetails(booking.delegationId || '');
-              const isCurrentCarVintage = car ? car.year < 2000 : false; // Necesario para la conversión de precio
+              const isCurrentCarVintage = car ? car.year < 2000 : false;
 
-              // Calcular el precio total usando Date nativo
               let totalPrice = 'N/A';
               let duration = 0;
               if (car && booking.startDate && booking.endDate) {
                 try {
                   const start = new Date(booking.startDate);
                   const end = new Date(booking.endDate);
-                  // Calcular la diferencia en milisegundos y luego convertir a días
                   const diffTime = Math.abs(end.getTime() - start.getTime());
-                  duration = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); // Redondea hacia arriba para incluir el día de fin
-                  // Si la duración es 0 (mismo día), se considera 1 día de reserva
+                  duration = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                   if (duration === 0 && booking.startDate === booking.endDate) {
                     duration = 1;
                   } else if (duration > 0) {
-                    duration = duration + 1; // Sumar 1 para incluir el día de inicio
+                    duration = duration + 1; // Add 1 to include the start day
                   }
 
                   if (duration > 0) {
@@ -258,65 +285,68 @@ setFilteredBookings(currentFilteredBookings);
                       ? `${(calculatedPrice * EUR_TO_PTS_RATE).toLocaleString(undefined, { maximumFractionDigits: 0 })} Pts`
                       : `${calculatedPrice.toFixed(2)} €`;
                   } else {
-                    totalPrice = 'Fechas inválidas';
+                    totalPrice = 'Invalid Dates';
                   }
                 } catch (e) {
-                  console.error(`ERROR (BookingsView): Error calculando precio total para booking ${booking.bookingId}:`, e);
-                  totalPrice = 'Error cálculo';
+                  console.error(`ERROR (BookingsView): Error calculating total price for booking ${booking.bookingId}:`, e);
+                  totalPrice = 'Calculation Error';
                 }
               }
 
-              console.log(`DEBUG (BookingsView): Procesando reserva ${booking.bookingId}`);
-              console.log(`DEBUG (BookingsView): Coche encontrado para reserva:`, car);
-              console.log(`DEBUG (BookingsView): Delegación encontrada para reserva:`, delegation);
+              console.log(`DEBUG (BookingsView): Processing booking ${booking.bookingId}`);
+              console.log(`DEBUG (BookingsView): Car found for booking:`, car);
+              console.log(`DEBUG (BookingsView): Delegation found for booking:`, delegation);
               if (delegation) {
-                console.log(`DEBUG (BookingsView): Detalles de Delegación: Nombre=${delegation.name}, Ciudad=${delegation.city}, Dirección=${delegation.adress}, Gestor=${delegation.manager}, Teléfono=${delegation.telf}, Lat=${delegation.lat}, Long=${delegation.longVal}, CantidadCoches=${delegation.carQuantity}`);
+                console.log(`DEBUG (BookingsView): Delegation Details: Name=${delegation.name}, City=${delegation.city}, Address=${delegation.adress}, Manager=${delegation.manager}, Phone=${delegation.telf}, Lat=${delegation.lat}, Long=${delegation.longVal}, CarQuantity=${delegation.carQuantity}`);
               } else {
-                console.log(`DEBUG (BookingsView): No se encontraron detalles de delegación para ID: ${booking.delegationId}`);
+                console.log(`DEBUG (BookingsView): No delegation details found for ID: ${booking.delegationId}`);
               }
 
-
               return (
-                <li key={booking.bookingId} className="bg-white shadow-md rounded-lg p-4 mb-4 border border-gray-200 flex flex-col items-center sm:items-start text-center sm:text-left">
-                  <div className="flex flex-col sm:flex-row w-full gap-4"> {/* Contenedor para las 3 secciones */}
-                    {/* Sección de Imagen (1/3) */}
+                <li
+                  key={booking.bookingId}
+                  data-booking-id={booking.bookingId} // IMPORTANT: Add this data attribute for PDF targeting
+                  className="bg-white shadow-md rounded-lg p-4 mb-4 border border-gray-200 flex flex-col items-center sm:items-start text-center sm:text-left"
+                >
+                  <div className="flex flex-col sm:flex-row w-full gap-4">
+                    {/* Image Section (1/3) */}
                     <div className="flex-1 w-full sm:w-1/3 flex items-center justify-center p-2">
                       {car && isCarWithMakeAndModel(car) ? (
                         <img
-                          src={getCarThumbnailImageUrl(car)} // Ya no se pasa isVintageMode aquí
+                          src={getCarThumbnailImageUrl(car)}
                           alt={`${car.make} ${car.model}`}
-                          style={{ width: '100%', height: '300px', objectFit: 'cover', borderRadius: '8px' }}
+                          className="w-full h-[300px] object-cover rounded-lg"
                           onError={(e) => {
                             console.error("ERROR (BookingsView): Failed to load car thumbnail image:", e.currentTarget.src, e);
                             (e.target as HTMLImageElement).src = 'https://placehold.co/150x100/E0E0E0/333333?text=No+Image';
                           }}
                         />
                       ) : (
-                        <div style={{ width: '100%', height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f0f0', borderRadius: '8px' }}>
-                          <p style={{ color: '#888', fontSize: '0.8rem' }}>Coche no encontrado</p>
+                        <div className="w-full h-[180px] flex items-center justify-center bg-gray-100 rounded-lg">
+                          <p className="text-gray-500 text-sm">Car Not Found</p>
                         </div>
                       )}
                     </div>
 
-                    {/* Sección de Booking y Coche (1/3) */}
+                    {/* Booking and Car Details Section (1/3) */}
                     <div className="flex-1 w-full sm:w-1/3 p-2 border-b sm:border-b-0 sm:border-r border-gray-200">
-                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Detalles de la Reserva</h3>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Booking Details</h3>
                       <p className="text-gray-700">
-                        <span className="font-medium">Usuario:</span> {booking.userId || 'N/A'}
+                        <span className="font-medium">User:</span> {booking.userId || 'N/A'}
                       </p>
                       {car ? (
                         <>
                           <p className="text-gray-700">
-                            <span className="font-medium">Coche:</span> {car.make || 'N/A'} {car.model || 'N/A'} ({car.year || 'N/A'}) - {car.color || 'N/A'}
+                            <span className="font-medium">Car:</span> {car.make || 'N/A'} {car.model || 'N/A'} ({car.year || 'N/A'}) - {car.color || 'N/A'}
                           </p>
                           <p className="text-gray-700 text-sm">
-                            <span className="font-medium">Fecha de Reserva:</span> {booking.bookingDate || 'N/A'}
+                            <span className="font-medium">Booking Date:</span> {booking.bookingDate || 'N/A'}
                           </p>
                           <p className="text-gray-700">
-                            <span className="font-medium">Fechas:</span> {booking.startDate || 'N/A'} a {booking.endDate || 'N/A'}
+                            <span className="font-medium">Dates:</span> {booking.startDate || 'N/A'} to {booking.endDate || 'N/A'}
                           </p>
                           <p className="text-gray-700">
-                            <span className="font-medium">Precio por día:</span>{' '}
+                            <span className="font-medium">Price per day:</span>{' '}
                             <strong>
                               {isVintageMode && isCurrentCarVintage
                                 ? `${(car.price * EUR_TO_PTS_RATE).toLocaleString(undefined, { maximumFractionDigits: 0 })} Pts`
@@ -324,57 +354,60 @@ setFilteredBookings(currentFilteredBookings);
                             </strong>
                           </p>
                           <p className="text-gray-700">
-                            <span className="font-medium">Número de días reservados:</span> {duration > 0 ? duration : 'N/A'}
+                            <span className="font-medium">Number of days booked:</span> {duration > 0 ? duration : 'N/A'}
                           </p>
                           <p className="text-lg font-bold text-gray-900 mt-2">
-                              <span className="text-purple-700">Precio Total:</span> {totalPrice}
+                            <span className="text-purple-700">Total Price:</span> {totalPrice}
                           </p>
                         </>
                       ) : (
-                        <p className="text-gray-700"><span className="font-medium">Coche:</span> Detalles no disponibles</p>
+                        <p className="text-gray-700"><span className="font-medium">Car:</span> Details Not Available</p>
                       )}
                       <p className="text-gray-700 text-sm">
-                        <span className="text-blue-600">Reserva ID:</span> {booking.bookingId || 'N/A'}
+                        <span className="text-blue-600">Booking ID:</span> {booking.bookingId || 'N/A'}
                       </p>
                     </div>
 
-                    {/* Sección de Delegación (1/3) */}
+                    {/* Delegation Details Section (1/3) */}
                     <div className="flex-1 w-full sm:w-1/3 p-2">
-                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Detalles de la Delegación</h3>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Delegation Details</h3>
                       {delegation ? (
                         <>
                           <p className="text-gray-700">
-                            <span className="font-medium">Delegación:</span> {delegation.name || 'N/A'} ({delegation.city || 'N/A'})
+                            <span className="font-medium">Delegation:</span> {delegation.name || 'N/A'} ({delegation.city || 'N/A'})
                           </p>
                           <p className="text-gray-700">
-                            <span className="font-medium">Dirección:</span> {delegation.adress || 'N/A'}
+                            <span className="font-medium">Address:</span> {delegation.adress || 'N/A'}
                           </p>
                           <p className="text-gray-700">
-                            <span className="font-medium">Gestor:</span> {delegation.manager || 'N/A'}
+                            <span className="font-medium">Manager:</span> {delegation.manager || 'N/A'}
                           </p>
                           <p className="text-gray-700">
-                            <span className="font-medium">Teléfono:</span> {delegation.telf || 'N/A'}
+                            <span className="font-medium">Phone:</span> {delegation.telf || 'N/A'}
                           </p>
                         </>
                       ) : (
-                        <p className="text-gray-700"><span className="font-medium">Delegación:</span> Detalles no disponibles</p>
+                        <p className="text-gray-700"><span className="font-medium">Delegation:</span> Details Not Available</p>
                       )}
                     </div>
                   </div>
-                  {/* Botones debajo de las tres secciones */}
-                  <div className="flex gap-2 mt-4 justify-center sm:justify-start w-full">
+                  {/* Buttons below the three sections */}
+                  <div className="flex gap-2 mt-4 justify-center sm:justify-start w-full print-buttons">
                     <Button theme="error small" onClick={() => handleDeleteBooking(booking)}>
-                      Borrar
+                      Delete
                     </Button>
                     <Button theme="tertiary small" onClick={() => handleModifyBooking(booking)}>
-                      Modificar
+                      Modify
+                    </Button>
+                    {/* Botón para DESCARGAR PDF */}
+                    <Button theme="contrast small" onClick={() => handleDownloadPdf(booking)}>
+                      Download PDF
                     </Button>
                   </div>
                 </li>
               );
             })}
           </ul>
-
         </div>
       )}
     </div>
