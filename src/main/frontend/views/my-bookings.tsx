@@ -50,6 +50,7 @@ export default function BookingsView() {
   const [allDelegations, setAllDelegations] = useState<Delegation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // isVintageMode is kept, but it no longer influences the currency symbol
   const [isVintageMode, setIsVintageMode] = useState(document.documentElement.classList.contains('vintage-mode'));
   const [filterUserId, setFilterUserId] = useState<string>('');
 
@@ -222,8 +223,8 @@ export default function BookingsView() {
   };
   // --- FIN NUEVA FUNCIÓN ---
 
-  // Define the Euro to Peseta conversion rate
-  const EUR_TO_PTS_RATE = 166.386;
+  // Define the Euro to Peseta conversion rate (kept for reference, but NOT used for conversion here)
+  const EUR_TO_PTS_RATE = 166.386; 
 
   return (
     <div className="flex flex-col h-full items-center p-l text-center box-border">
@@ -263,7 +264,8 @@ export default function BookingsView() {
             {filteredBookings.map(booking => {
               const car = getCarDetails(booking.carId || '');
               const delegation = getDelegationDetails(booking.delegationId || '');
-              const isCurrentCarVintage = car ? car.year < 2000 : false;
+              // This correctly determines if the car is vintage based on its year
+              const isCurrentCarVintage = car ? car.year < 2000 : false; 
 
               let totalPrice = 'N/A';
               let duration = 0;
@@ -281,8 +283,9 @@ export default function BookingsView() {
 
                   if (duration > 0) {
                     const calculatedPrice = car.price * duration;
-                    totalPrice = isVintageMode && isCurrentCarVintage
-                      ? `${(calculatedPrice * EUR_TO_PTS_RATE).toLocaleString(undefined, { maximumFractionDigits: 0 })} Pts`
+                    // **MODIFICACIÓN CLAVE**: Usa solo `isCurrentCarVintage` para determinar el símbolo
+                    totalPrice = isCurrentCarVintage 
+                      ? `${calculatedPrice.toFixed(2)} Pts` // Muestra el valor original con "Pts"
                       : `${calculatedPrice.toFixed(2)} €`;
                   } else {
                     totalPrice = 'Invalid Dates';
@@ -348,9 +351,10 @@ export default function BookingsView() {
                           <p className="text-gray-700">
                             <span className="font-medium">Price per day:</span>{' '}
                             <strong>
-                              {isVintageMode && isCurrentCarVintage
-                                ? `${(car.price * EUR_TO_PTS_RATE).toLocaleString(undefined, { maximumFractionDigits: 0 })} Pts`
-                                : `${car.price || 'N/A'} €`}
+                              {/* **MODIFICACIÓN CLAVE**: Usa solo `isCurrentCarVintage` para determinar el símbolo */}
+                              {isCurrentCarVintage 
+                                ? `${car.price?.toFixed(2) || 'N/A'} Pts` // Muestra el valor original con "Pts"
+                                : `${car.price?.toFixed(2) || 'N/A'} €`}
                             </strong>
                           </p>
                           <p className="text-gray-700">
