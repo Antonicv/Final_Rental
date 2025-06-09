@@ -39,6 +39,13 @@ export default function Billing() {
       paymentStatus: 'Overdue',
       paymentMethod: 'Bank Transfer',
     },
+    {
+      id: 'INV-1003',
+      date: '2025-04-20',
+      amount: 99.99,
+      paymentStatus: 'Overdue',
+      paymentMethod: 'Bank Transfer',
+    },
   ]);
 
   // Función simulada para marcar una factura como pagada
