@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { getAllBookings } from "Frontend/generated/DelegationEndpoint";
 import { getAllUsers } from "Frontend/generated/UserEndpoint";
 import { getAllCars } from "Frontend/generated/DelegationEndpoint";
+import { Details } from '@vaadin/react-components/Details'; // Import Details for collapsible sections
 
 interface Booking {
   bookingId: string;
@@ -130,16 +131,16 @@ const Dashboard: React.FC = () => {
     const rentedCars = carsInDelegation.filter((c) => c.rented).length;
     const availableCars = totalCars - rentedCars;
 
-    // Reservas en esta delegación (buscamos coche con carId igual a delegationId en booking)
+    // Reservas en esta delegación (buscamos coche con carId igual a operation en booking)
     const bookingsInDelegation = bookings.filter((b) => {
-      const car = cars.find((c) => c.delegationId === b.carId);
+      const car = cars.find((c) => c.operation === b.carId); // Changed c.delegationId to c.operation
       return car?.delegationId === delegId;
     });
 
     const totalReservations = bookingsInDelegation.length;
 
     const totalIncome = bookingsInDelegation.reduce((acc, booking) => {
-      const car = cars.find((c) => c.delegationId === booking.carId);
+      const car = cars.find((c) => c.operation === booking.carId); // Changed c.delegationId to c.operation
       if (!car) return acc;
       const days = calculateDays(booking.startDate, booking.endDate);
       const priceWithoutIVA = car.price * days;
@@ -198,6 +199,7 @@ const Dashboard: React.FC = () => {
     <div style={{ padding: "1rem" }}>
       <h1>Dashboard Administrativo</h1>
 
+      {/* Main Stats Summary (Always visible) */}
       <div style={{ display: "flex", gap: "2rem", marginBottom: "2rem" }}>
         <div>
           <h2>Reservas totales</h2>
@@ -215,109 +217,119 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Filtros vehículos */}
-      <div style={{ marginBottom: "1rem" }}>
-        <input
-          type="text"
-          placeholder="Buscar por marca o modelo"
-          value={carSearchTerm}
-          onChange={(e) => setCarSearchTerm(e.target.value)}
-          style={{ marginRight: "1rem" }}
-        />
-        <select
-          value={carAvailabilityFilter}
-          onChange={(e) =>
-            setCarAvailabilityFilter(e.target.value as "all" | "available" | "rented")
-          }
-        >
-          <option value="all">Todos</option>
-          <option value="available">Disponibles</option>
-          <option value="rented">Alquilados</option>
-        </select>
-        <button onClick={downloadCarsCSV} style={{ marginLeft: "1rem" }}>
-          Descargar coches filtrados CSV
-        </button>
-      </div>
+      {/* --- */}
+      {/* Collapsible Section for Vehicle List */}
+      <Details summary="Lista de vehículos y filtros" theme="filled">
+        <div style={{ padding: "1rem" }}>
+          {/* Filtros vehículos */}
+          <div style={{ marginBottom: "1rem" }}>
+            <input
+              type="text"
+              placeholder="Buscar por marca o modelo"
+              value={carSearchTerm}
+              onChange={(e) => setCarSearchTerm(e.target.value)}
+              style={{ marginRight: "1rem" }}
+            />
+            <select
+              value={carAvailabilityFilter}
+              onChange={(e) =>
+                setCarAvailabilityFilter(e.target.value as "all" | "available" | "rented")
+              }
+            >
+              <option value="all">Todos</option>
+              <option value="available">Disponibles</option>
+              <option value="rented">Alquilados</option>
+            </select>
+            <button onClick={downloadCarsCSV} style={{ marginLeft: "1rem" }}>
+              Descargar coches filtrados CSV
+            </button>
+          </div>
 
-      <h3>Lista de vehículos</h3>
-      <table border={1} cellPadding={5} style={{ marginBottom: "2rem", width: "100%" }}>
-        <thead>
-          <tr>
-            <th>Delegación</th>
-            <th>Operación</th>
-            <th>Marca</th>
-            <th>Modelo</th>
-            <th>Año</th>
-            <th>Color</th>
-            <th>Estado</th>
-            <th>Precio Diario</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredCars.map((car, idx) => (
-            <tr key={idx}>
-              <td>{car.delegationId}</td>
-              <td>{car.operation}</td>
-              <td>{car.make}</td>
-              <td>{car.model}</td>
-              <td>{car.year}</td>
-              <td>{car.color}</td>
-              <td>{car.rented ? "Alquilado" : "Disponible"}</td>
-              <td>{formatPrice(car)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          <table border={1} cellPadding={5} style={{ marginBottom: "2rem", width: "100%" }}>
+            <thead>
+              <tr>
+                <th>Delegación</th>
+                <th>Operación</th>
+                <th>Marca</th>
+                <th>Modelo</th>
+                <th>Año</th>
+                <th>Color</th>
+                <th>Estado</th>
+                <th>Precio Diario</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCars.map((car, idx) => (
+                <tr key={idx}>
+                  <td>{car.delegationId}</td>
+                  <td>{car.operation}</td>
+                  <td>{car.make}</td>
+                  <td>{car.model}</td>
+                  <td>{car.year}</td>
+                  <td>{car.color}</td>
+                  <td>{car.rented ? "Alquilado" : "Disponible"}</td>
+                  <td>{formatPrice(car)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Details>
 
-      <h2>Estadísticas por Delegación</h2>
-      <p>
-        Delegación que más ingresos genera: <b>{topDelegation.delegationId}</b> con{" "}
-        <b>{topDelegation.totalIncome.toFixed(2)} €</b>
-      </p>
+      {/* --- */}
+      {/* Collapsible Section for Delegation Statistics */}
+      <Details summary="Estadísticas por Delegación" theme="filled" style={{ marginTop: "1rem" }}>
+        <div style={{ padding: "1rem" }}>
+          <p>
+            Delegación que más ingresos genera: <b>{topDelegation.delegationId}</b> con{" "}
+            <b>{topDelegation.totalIncome.toFixed(2)} €</b>
+          </p>
 
-      <table border={1} cellPadding={5} style={{ marginBottom: "1rem", width: "100%" }}>
-        <thead>
-          <tr>
-            <th>Delegación</th>
-            <th>Total Reservas</th>
-            <th>Ingresos totales (€)</th>
-            <th>Total Coches</th>
-            <th>Coches Alquilados</th>
-            <th>Coches Disponibles</th>
-          </tr>
-        </thead>
-        <tbody>
-          {delegationStats.map((d) => (
-            <tr key={d.delegationId}>
-              <td>{d.delegationId}</td>
-              <td style={{ textAlign: "center" }}>{d.totalReservations}</td>
-              <td style={{ textAlign: "right" }}>{d.totalIncome.toFixed(2)}</td>
-              <td style={{ textAlign: "center" }}>{d.totalCars}</td>
-              <td style={{ textAlign: "center" }}>{d.rentedCars}</td>
-              <td style={{ textAlign: "center" }}>{d.availableCars}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          <table border={1} cellPadding={5} style={{ marginBottom: "1rem", width: "100%" }}>
+            <thead>
+              <tr>
+                <th>Delegación</th>
+                <th>Total Reservas</th>
+                <th>Ingresos totales (€)</th>
+                <th>Total Coches</th>
+                <th>Coches Alquilados</th>
+                <th>Coches Disponibles</th>
+              </tr>
+            </thead>
+            <tbody>
+              {delegationStats.map((d) => (
+                <tr key={d.delegationId}>
+                  <td>{d.delegationId}</td>
+                  <td style={{ textAlign: "center" }}>{d.totalReservations}</td>
+                  <td style={{ textAlign: "right" }}>{d.totalIncome.toFixed(2)}</td>
+                  <td style={{ textAlign: "center" }}>{d.totalCars}</td>
+                  <td style={{ textAlign: "center" }}>{d.rentedCars}</td>
+                  <td style={{ textAlign: "center" }}>{d.availableCars}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-      <button
-        onClick={() =>
-          downloadCSV(
-            ["Delegación", "Total Reservas", "Ingresos totales (€)", "Total Coches", "Coches Alquilados", "Coches Disponibles"],
-            delegationStats.map((d) => [
-              d.delegationId,
-              d.totalReservations,
-              d.totalIncome.toFixed(2),
-              d.totalCars,
-              d.rentedCars,
-              d.availableCars,
-            ]),
-            "estadisticas_delegaciones.csv"
-          )
-        }
-      >
-        Descargar estadísticas por delegación CSV
-      </button>
+          <button
+            onClick={() =>
+              downloadCSV(
+                ["Delegación", "Total Reservas", "Ingresos totales (€)", "Total Coches", "Coches Alquilados", "Coches Disponibles"],
+                delegationStats.map((d) => [
+                  d.delegationId,
+                  d.totalReservations,
+                  d.totalIncome.toFixed(2),
+                  d.totalCars,
+                  d.rentedCars,
+                  d.availableCars,
+                ]),
+                "estadisticas_delegaciones.csv"
+              )
+            }
+          >
+            Descargar estadísticas por delegación CSV
+          </button>
+        </div>
+      </Details>
     </div>
   );
 };
