@@ -6,406 +6,441 @@ import { DelegationEndpoint } from 'Frontend/generated/endpoints';
 import Booking from 'Frontend/generated/dev/renting/delegations/Booking';
 import Car from 'Frontend/generated/dev/renting/delegations/Car';
 import Delegation from 'Frontend/generated/dev/renting/delegations/Delegation';
-import html2pdf from 'html2pdf.js'; // IMPORTANTE: Importa la librería
+import html2pdf from 'html2pdf.js'; // IMPORTANT: Importa la llibreria
 
-// View configuration for the Hilla router
+// Configuració de la vista per al router de Hilla
 export const config: ViewConfig = {
-  title: 'Mis Reservas',
+  title: 'Les Meves Reserves',
 };
 
-// Helper function to sanitize strings for filename parts
+// Funció auxiliar per netejar cadenes de text per a noms de fitxer.
+// Elimina accents, substitueix espais per guions baixos i treu caràcters no alfanumèrics.
 function sanitizeFilenamePart(text: string): string {
   return text
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, '_')
-    .replace(/[^a-zA-Z0-9_.-]/g, '');
+    .normalize("NFD") // Normalitza la cadena per separar accents de les lletres base.
+    .replace(/[\u0300-\u036f]/g, "") // Elimina els diacrítics (accents, etc.).
+    .replace(/\s+/g, '_') // Substitueix un o més espais per un guió baix.
+    .replace(/[^a-zA-Z0-9_.-]/g, ''); // Elimina qualsevol caràcter que no sigui lletra, número, guió baix, punt o guió.
 }
 
-// Type guard function to ensure a Car object has 'make', 'model', and 'year' properties
+// Funció 'type guard' per assegurar que un objecte Car té les propietats 'make', 'model' i 'year'.
 function isCarWithMakeAndModel(car: Car | undefined): car is Car & { make: string; model: string; year: number; color?: string; price?: number; rented?: boolean; } {
   return !!car && typeof car.make === 'string' && typeof car.model === 'string' && typeof car.year === 'number';
 }
 
-// Function to generate car image URL (local for vintage, external for modern)
+// Funció per generar la URL de la imatge del cotxe.
+// Si el cotxe és 'vintage' (any anterior a 2000), utilitza una imatge local.
+// Altrament, utilitza una URL externa d'un servei d'imatges de cotxes.
 const getCarThumbnailImageUrl = (car: Car) => {
   const isCurrentCarVintage = car.year < 2000;
 
   if (isCurrentCarVintage) {
     const localImagePath = `/images/${sanitizeFilenamePart(car.make || '')}_${sanitizeFilenamePart(car.model || '')}.webp`;
-    console.log("DEBUG (BookingsView): Generated local vintage car image URL:", localImagePath);
+    console.log("DEBUG (BookingsView): URL d'imatge de cotxe vintage local generada:", localImagePath);
     return localImagePath;
   } else {
     const imageUrl = `https://cdn.imagin.studio/getimage?customer=img&make=${encodeURIComponent(car.make || '')}&modelFamily=${encodeURIComponent(car.model || '')}&paintId=${encodeURIComponent(car.color || '')}&zoomType=fullscreen`;
-    console.log("DEBUG (BookingsView): Generated external modern car image URL:", imageUrl);
+    console.log("DEBUG (BookingsView): URL d'imatge de cotxe modern externa generada:", imageUrl);
     return imageUrl;
   }
 };
 
-// Main Bookings View Component
+// Component principal de la vista de Reserves
 export default function BookingsView() {
+  // Estat per emmagatzemar totes les reserves carregades.
   const [allBookings, setAllBookings] = useState<Booking[]>([]);
+  // Estat per emmagatzemar les reserves filtrades (mostrades actualment).
   const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
+  // Estat per emmagatzemar tots els cotxes carregats.
   const [allCars, setAllCars] = useState<Car[]>([]);
+  // Estat per emmagatzemar totes les delegacions carregades.
   const [allDelegations, setAllDelegations] = useState<Delegation[]>([]);
+  // Estat per indicar si les dades s'estan carregant.
   const [loading, setLoading] = useState(true);
+  // Estat per emmagatzemar qualsevol missatge d'error.
   const [error, setError] = useState<string | null>(null);
-  // isVintageMode is kept, but it no longer influences the currency symbol
+  // `isVintageMode` es manté, però ja no influeix en el símbol de la moneda.
   const [isVintageMode, setIsVintageMode] = useState(document.documentElement.classList.contains('vintage-mode'));
+  // Estat per al valor del camp de text del filtre per ID d'usuari.
   const [filterUserId, setFilterUserId] = useState<string>('');
 
 
-  // useEffect to listen for changes in the 'vintage-mode' class on the <html> element
+  // Efecte per escoltar els canvis a la classe 'vintage-mode' de l'element <html>.
+  // S'utilitza per actualitzar l'estat `isVintageMode` del component.
   useEffect(() => {
     const htmlElement = document.documentElement;
     const observer = new MutationObserver(() => {
       setIsVintageMode(htmlElement.classList.contains('vintage-mode'));
     });
+    // Observa canvis en els atributs (específicament la classe) de l'element <html>.
     observer.observe(htmlElement, { attributes: true, attributeFilter: ['class'] });
+    // Inicialitza l'estat en la càrrega inicial.
     setIsVintageMode(htmlElement.classList.contains('vintage-mode'));
+    // Funció de neteja: desconnecta l'observador quan el component es desmunta.
     return () => observer.disconnect();
-  }, []);
+  }, []); // Array de dependències buit, s'executa només al muntar.
 
-  // Function to load all data (bookings, cars, delegations)
+  // Funció per carregar totes les dades (reserves, cotxes, delegacions).
+  // Pot rebre un `userIdToFilter` opcional per filtrar les reserves inicialment.
   const fetchAllData = async (userIdToFilter: string | null = null) => {
-    console.log("DEBUG (BookingsView): Starting data fetch...");
+    console.log("DEBUG (BookingsView): Iniciant la càrrega de dades...");
     try {
-      setLoading(true);
-      setError(null);
+      setLoading(true); // Activa l'estat de càrrega.
+      setError(null); // Neteja qualsevol error previ.
 
-      // 1. Load all cars
+      // 1. Carrega tots els cotxes.
       const carsResult = await DelegationEndpoint.getAllCars();
-      const validCars = (carsResult ?? []).filter(isCarWithMakeAndModel);
+      const validCars = (carsResult ?? []).filter(isCarWithMakeAndModel); // Filtra per cotxes vàlids.
       setAllCars(validCars);
-      console.log(`DEBUG (BookingsView): Loaded ${validCars.length} cars.`);
+      console.log(`DEBUG (BookingsView): S'han carregat ${validCars.length} cotxes.`);
 
-      // 2. Load all profile delegations
+      // 2. Carrega totes les delegacions del perfil.
       const delegationsResult = await DelegationEndpoint.getAllProfileDelegations();
       const validDelegations = (delegationsResult ?? []).filter((d): d is Delegation => d !== undefined && d !== null);
       setAllDelegations(validDelegations);
-      console.log(`DEBUG (BookingsView): Loaded ${validDelegations.length} delegations.`);
+      console.log(`DEBUG (BookingsView): S'han carregat ${validDelegations.length} delegacions.`);
+      // Registra els detalls de les delegacions per a depuració.
       validDelegations.forEach(d => {
-        console.log(`DEBUG (BookingsView): Delegation loaded: ID=${d.delegationId}, Name=${d.name}, City=${d.city}, Address=${d.adress}, Manager=${d.manager}, Phone=${d.telf}, Lat=${d.lat}, Long=${d.longVal}, CarQuantity=${d.carQuantity}`);
+        console.log(`DEBUG (BookingsView): Delegació carregada: ID=${d.delegationId}, Nom=${d.name}, Ciutat=${d.city}, Adreça=${d.adress}, Gestor=${d.manager}, Telèfon=${d.telf}, Latitud=${d.lat}, Longitud=${d.longVal}, Quantitat Cotxes=${d.carQuantity}`);
       });
 
-      // 3. Load all bookings
+      // 3. Carrega totes les reserves.
       const bookingsResult = await DelegationEndpoint.getAllBookings();
       const validBookings = Array.isArray(bookingsResult)
         ? bookingsResult.filter((b): b is Booking => b !== undefined)
         : [];
       setAllBookings(validBookings);
-      console.log(`DEBUG (BookingsView): Loaded ${validBookings.length} bookings.`);
+      console.log(`DEBUG (BookingsView): S'han carregat ${validBookings.length} reserves.`);
 
-      // Apply filter if userIdToFilter is present
+      // Aplica el filtre si `userIdToFilter` està present.
       const currentFilteredBookings = userIdToFilter
         ? validBookings.filter(booking => booking.userId === userIdToFilter)
         : validBookings;
-      setFilteredBookings(currentFilteredBookings);
+      setFilteredBookings(currentFilteredBookings); // Actualitza les reserves filtrades.
+
+      // Estableix el missatge d'error si no es troben reserves.
       if (currentFilteredBookings.length === 0) {
         if (userIdToFilter) {
-          setError(`No bookings found for user "${userIdToFilter}".`);
+          setError(`No s'han trobat reserves per a l'usuari "${userIdToFilter}".`);
         } else {
-          setError('No bookings registered.');
+          setError('No hi ha reserves registrades.');
         }
-        console.log("DEBUG (BookingsView): No bookings found.");
+        console.log("DEBUG (BookingsView): No s'han trobat reserves.");
       } else {
-        setError(null);
+        setError(null); // Neteja l'error si hi ha reserves.
       }
     } catch (e) {
-      console.error('ERROR (BookingsView): Error fetching all data:', e);
-      setError('There was an error loading your bookings. Please try again later.');
+      console.error('ERROR (BookingsView): Error en carregar totes les dades:', e);
+      setError('Hi va haver un error en carregar les teves reserves. Si us plau, intenta-ho de nou més tard.');
+      // Buidar tots els estats en cas d'error.
       setAllBookings([]);
       setFilteredBookings([]);
       setAllCars([]);
       setAllDelegations([]);
     } finally {
-      setLoading(false);
-      console.log("DEBUG (BookingsView): Data fetch completed.");
+      setLoading(false); // Finalitza l'estat de càrrega.
+      console.log("DEBUG (BookingsView): Càrrega de dades completada.");
     }
   };
 
-  // useEffect to load data on component mount (no initial filter)
+  // Efecte per carregar les dades quan el component es munta (sense filtre inicial).
   useEffect(() => {
     fetchAllData();
-  }, []);
+  }, []); // Array de dependències buit, s'executa una única vegada al muntar.
 
-  // Handler for user filter button
+  // Manejador per al botó de filtre per usuari.
   const handleFilterByUser = () => {
-    fetchAllData(filterUserId);
+    fetchAllData(filterUserId); // Crida a `fetchAllData` amb l'ID d'usuari del filtre.
   };
 
-  // Handler for show all bookings button
+  // Manejador per al botó "Mostrar Totes les Reserves".
   const handleShowAllBookings = () => {
-    setFilterUserId(''); // Clear the filter field
-    fetchAllData(null); // Show all bookings
+    setFilterUserId(''); // Neteja el camp de filtre.
+    fetchAllData(null); // Crida a `fetchAllData` sense filtre per mostrar totes les reserves.
   };
 
-  // Function to get car details from carId (operation)
+  // Funció per obtenir els detalls del cotxe a partir del seu ID d'operació.
   const getCarDetails = (carId: string) => {
     return allCars.find(car => car.operation === carId);
   };
 
-  // Function to get delegation details
+  // Funció per obtenir els detalls de la delegació.
   const getDelegationDetails = (delegationId: string) => {
     return allDelegations.find(delegation => delegation.delegationId === delegationId);
   };
 
-  // Handler to delete a booking
+  // Manejador per eliminar una reserva.
   const handleDeleteBooking = async (booking: Booking) => {
+    // Validació bàsica de les dades necessàries per eliminar una reserva.
     if (!booking.carId || !booking.startDate) {
-      setError('Error: Cannot delete booking. Missing key data (carId or startDate).');
+      setError('Error: No es pot eliminar la reserva. Falten dades clau (ID del cotxe o data d\'inici).');
       return;
     }
-    console.log(`DEBUG (Frontend): Attempting to delete booking with carId: "${booking.carId}" and startDate: "${booking.startDate}"`);
-    const confirmed = true; // Replace with a custom modal confirmation
+    console.log(`DEBUG (Frontend): Intentant eliminar la reserva amb carId: "${booking.carId}" i startDate: "${booking.startDate}"`);
+    const confirmed = true; // Substituir amb una confirmació de modal personalitzada.
 
     if (confirmed) {
       try {
+        // Crida a l'endpoint del backend per eliminar la reserva.
         await DelegationEndpoint.deleteBooking(booking.carId, booking.startDate);
-        setError(`Booking ${booking.bookingId} deleted successfully.`);
-        // Reload all bookings to update the list, applying the filter if it exists
+        setError(`Reserva ${booking.bookingId} eliminada amb èxit.`);
+        // Recarregar totes les reserves per actualitzar la llista, aplicant el filtre si existeix.
         await fetchAllData(filterUserId || null);
       } catch (e) {
-        console.error('ERROR (BookingsView): Error deleting booking:', e);
-        setError('There was an error deleting the booking. Please try again.');
+        console.error('ERROR (BookingsView): Error en eliminar la reserva:', e);
+        setError('Hi va haver un error en eliminar la reserva. Si us plau, intenta-ho de nou.');
       }
     }
   };
 
-  // Handler to modify a booking (placeholder)
+  // Manejador per modificar una reserva (marcador de posició).
   const handleModifyBooking = (booking: Booking) => {
-    setError(`Modify booking functionality for ${booking.bookingId} not yet implemented.`);
-    console.log('Modify booking:', booking);
+    setError(`La funcionalitat de modificar la reserva ${booking.bookingId} encara no està implementada.`);
+    console.log('Modificar reserva:', booking);
   };
 
-  // --- NUEVA FUNCIÓN PARA DESCARGAR PDF DE LA RESERVA ---
+  // --- NOVA FUNCIÓ PER DESCARREGAR EL PDF DE LA RESERVA ---
   const handleDownloadPdf = async (booking: Booking) => {
-    console.log('Generating PDF for booking:', booking);
+    console.log('Generant PDF per a la reserva:', booking);
 
-    // 1. Encuentra el elemento HTML de la reserva específica.
+    // 1. Troba l'element HTML de la reserva específica.
+    // Utilitza un atribut `data-booking-id` afegit a l'element `<li>` per a una identificació precisa.
     const bookingElement = document.querySelector(`li[data-booking-id="${booking.bookingId}"]`);
 
     if (bookingElement) {
-      setError(null); // Clear any previous errors
+      setError(null); // Neteja qualsevol error previ.
 
-      // Opcional: Clona el nodo para limpiarlo de botones y CSS no deseado antes de generar el PDF
-      // Esto asegura que solo el contenido visible se convierta y no los botones de acción.
+      // Opcional: Clona el node per netejar-lo de botons i CSS no desitjat abans de generar el PDF.
+      // Això assegura que només el contingut visible es converteixi i no els botons d'acció.
       const clonedElement = bookingElement.cloneNode(true) as HTMLElement;
 
-      // Eliminar los botones de acción del clon para que no aparezcan en el PDF
+      // Eliminar els botons d'acció del clon perquè no apareguin al PDF.
       const buttonsDiv = clonedElement.querySelector('.print-buttons');
       if (buttonsDiv) {
-        buttonsDiv.remove();
+        buttonsDiv.remove(); // Elimina l'element que conté els botons.
       }
 
-      // Opciones para html2pdf
+      // Opcions per a html2pdf.
       const pdfOptions = {
-        margin: 10,
-        filename: `Reserva_${booking.bookingId}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true }, // scale para mejor calidad, useCORS para imágenes externas
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        margin: 10, // Marge al voltant del contingut del PDF (en mm).
+        filename: `Reserva_${booking.bookingId}.pdf`, // Nom del fitxer PDF.
+        image: { type: 'jpeg', quality: 0.98 }, // Qualitat de les imatges incrustades.
+        html2canvas: { scale: 2, useCORS: true }, // 'scale' per a millor qualitat, 'useCORS' per a imatges externes.
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } // Unitats, format i orientació del PDF.
       };
 
       try {
-        // Genera el PDF y lo descarga
+        // Genera el PDF a partir de l'element clonat i el descarrega.
         await html2pdf().from(clonedElement).set(pdfOptions).save();
-        setError(`PDF de la reserva ${booking.bookingId} generado y descargado con éxito.`);
+        setError(`PDF de la reserva ${booking.bookingId} generat i descarregat amb èxit.`);
       } catch (e) {
-        console.error('ERROR (BookingsView): Error generating PDF:', e);
-        setError('Hubo un error al generar el PDF de la reserva. Por favor, inténtalo de nuevo.');
+        console.error('ERROR (BookingsView): Error en generar el PDF:', e);
+        setError('Hi va haver un error en generar el PDF de la reserva. Si us plau, intenta-ho de nou.');
       }
 
     } else {
-      console.error('ERROR (BookingsView): Could not find booking element for PDF generation with ID:', booking.bookingId);
-      setError('No se pudo encontrar la reserva para generar el PDF. Por favor, inténtalo de nuevo.');
+      console.error('ERROR (BookingsView): No s\'ha pogut trobar l\'element de la reserva per a la generació del PDF amb ID:', booking.bookingId);
+      setError('No s\'ha pogut trobar la reserva per generar el PDF. Si us plau, intenta-ho de nou.');
     }
   };
-  // --- FIN NUEVA FUNCIÓN ---
+  // --- FI NOVA FUNCIÓ ---
 
-  // Define the Euro to Peseta conversion rate (kept for reference, but NOT used for conversion here)
+  // Defineix el tipus de canvi d'Euro a Pesseta (es manté per referència, però NO s'utilitza per a la conversió aquí).
   const EUR_TO_PTS_RATE = 166.386; 
 
   return (
+    // Contenidor principal de la vista.
     <div className="flex flex-col h-full items-center p-l text-center box-border">
-      <h2 className="text-2xl font-bold mb-4">Mis Reservas</h2>
+      {/* Títol principal de la secció. */}
+      <h2 className="text-2xl font-bold mb-4">Les Meves Reserves</h2>
 
-      {/* User filter section */}
+      {/* Secció de filtre d'usuari */}
       <div className="flex gap-2 mb-4 items-end filter-section">
+        {/* Camp de text per introduir l'ID d'usuari a filtrar. */}
         <TextField
-          label="Filtrar por ID de Usuario"
-          placeholder="Ej: USER#001"
+          label="Filtrar per ID d'Usuari"
+          placeholder="Ex: USER#001"
           value={filterUserId}
           onValueChanged={({ detail }) => setFilterUserId(detail.value)}
         />
+        {/* Botó per aplicar el filtre. */}
         <Button theme="primary" onClick={handleFilterByUser}>
           Filtrar
         </Button>
+        {/* Botó per mostrar totes les reserves (netejar filtre). */}
         <Button theme="tertiary" onClick={handleShowAllBookings}>
-          Mostrar Todas
+          Mostrar Totes
         </Button>
       </div>
 
+      {/* Missatge de càrrega. */}
       {loading && (
-        <p className="text-gray-600">Cargando reservas...</p>
+        <p className="text-gray-600">Carregant reserves...</p>
       )}
 
+      {/* Missatge d'error. */}
       {error && (
         <div className="text-red-600 font-bold mt-4">{error}</div>
       )}
 
+      {/* Missatge si no hi ha reserves després de la càrrega/filtratge. */}
       {!loading && !error && filteredBookings.length === 0 && (
-        <p className="text-gray-600 mt-4">No tienes reservas registradas {filterUserId ? `para el usuario "${filterUserId}"` : ''}.</p>
+        <p className="text-gray-600 mt-4">No tens reserves registrades {filterUserId ? `per a l'usuari "${filterUserId}"` : ''}.</p>
       )}
 
+      {/* Llista de reserves si hi ha dades i no hi ha errors. */}
       {!loading && !error && filteredBookings.length > 0 && (
         <div className="w-full max-w-5xl text-left">
           <ul className="list-none p-0">
             {filteredBookings.map(booking => {
+              // Obté els detalls del cotxe i la delegació per a cada reserva.
               const car = getCarDetails(booking.carId || '');
               const delegation = getDelegationDetails(booking.delegationId || '');
-              // This correctly determines if the car is vintage based on its year
-              const isCurrentCarVintage = car ? car.year < 2000 : false; 
+              // Determina si el cotxe actual és vintage basant-se en el seu any.
+              const isCurrentCarVintage = car ? car.year < 2000 : false;
 
               let totalPrice = 'N/A';
               let duration = 0;
+              // Calcula el preu total i la durada de la reserva.
               if (car && booking.startDate && booking.endDate) {
                 try {
                   const start = new Date(booking.startDate);
                   const end = new Date(booking.endDate);
                   const diffTime = Math.abs(end.getTime() - start.getTime());
-                  duration = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                  duration = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); // Durada en dies.
                   if (duration === 0 && booking.startDate === booking.endDate) {
-                    duration = 1;
+                    duration = 1; // Si és el mateix dia, compta com 1 dia.
                   } else if (duration > 0) {
-                    duration = duration + 1; // Add 1 to include the start day
+                    duration = duration + 1; // Afegeix 1 per incloure el dia d'inici.
                   }
 
                   if (duration > 0) {
                     const calculatedPrice = car.price * duration;
-                    // **MODIFICACIÓN CLAVE**: Usa solo `isCurrentCarVintage` para determinar el símbolo
-                    totalPrice = isCurrentCarVintage 
-                      ? `${calculatedPrice.toFixed(2)} Pts` // Muestra el valor original con "Pts"
-                      : `${calculatedPrice.toFixed(2)} €`;
+                    // **MODIFICACIÓ CLAU**: Usa només `isCurrentCarVintage` per determinar el símbol de la moneda.
+                    totalPrice = isCurrentCarVintage
+                      ? `${calculatedPrice.toFixed(2)} Pts` // Mostra el valor original amb "Pts" si és vintage.
+                      : `${calculatedPrice.toFixed(2)} €`; // Altrament, mostra amb "€".
                   } else {
-                    totalPrice = 'Invalid Dates';
+                    totalPrice = 'Dates Invàlides';
                   }
                 } catch (e) {
-                  console.error(`ERROR (BookingsView): Error calculating total price for booking ${booking.bookingId}:`, e);
-                  totalPrice = 'Calculation Error';
+                  console.error(`ERROR (BookingsView): Error en calcular el preu total per a la reserva ${booking.bookingId}:`, e);
+                  totalPrice = 'Error de Càlcul';
                 }
               }
 
-              console.log(`DEBUG (BookingsView): Processing booking ${booking.bookingId}`);
-              console.log(`DEBUG (BookingsView): Car found for booking:`, car);
-              console.log(`DEBUG (BookingsView): Delegation found for booking:`, delegation);
+              console.log(`DEBUG (BookingsView): Processant la reserva ${booking.bookingId}`);
+              console.log(`DEBUG (BookingsView): Cotxe trobat per a la reserva:`, car);
+              console.log(`DEBUG (BookingsView): Delegació trobada per a la reserva:`, delegation);
               if (delegation) {
-                console.log(`DEBUG (BookingsView): Delegation Details: Name=${delegation.name}, City=${delegation.city}, Address=${delegation.adress}, Manager=${delegation.manager}, Phone=${delegation.telf}, Lat=${delegation.lat}, Long=${delegation.longVal}, CarQuantity=${delegation.carQuantity}`);
+                console.log(`DEBUG (BookingsView): Detalls de la Delegació: Nom=${delegation.name}, Ciutat=${delegation.city}, Adreça=${delegation.adress}, Gestor=${delegation.manager}, Telèfon=${delegation.telf}, Latitud=${delegation.lat}, Longitud=${delegation.longVal}, Quantitat Cotxes=${delegation.carQuantity}`);
               } else {
-                console.log(`DEBUG (BookingsView): No delegation details found for ID: ${booking.delegationId}`);
+                console.log(`DEBUG (BookingsView): No s'han trobat detalls de la delegació per a l'ID: ${booking.delegationId}`);
               }
 
               return (
                 <li
                   key={booking.bookingId}
-                  data-booking-id={booking.bookingId} // IMPORTANT: Add this data attribute for PDF targeting
+                  data-booking-id={booking.bookingId} // IMPORTANT: Afegeix aquest atribut de dades per a la selecció del PDF.
                   className="bg-white shadow-md rounded-lg p-4 mb-4 border border-gray-200 flex flex-col items-center sm:items-start text-center sm:text-left"
                 >
                   <div className="flex flex-col sm:flex-row w-full gap-4">
-                    {/* Image Section (1/3) */}
+                    {/* Secció d'Imatge (1/3) */}
                     <div className="flex-1 w-full sm:w-1/3 flex items-center justify-center p-2">
                       {car && isCarWithMakeAndModel(car) ? (
                         <img
-                          src={getCarThumbnailImageUrl(car)}
+                          src={getCarThumbnailImageUrl(car)} // Obté la URL de la imatge del cotxe.
                           alt={`${car.make} ${car.model}`}
                           className="w-full h-[300px] object-cover rounded-lg"
                           onError={(e) => {
-                            console.error("ERROR (BookingsView): Failed to load car thumbnail image:", e.currentTarget.src, e);
-                            (e.target as HTMLImageElement).src = 'https://placehold.co/150x100/E0E0E0/333333?text=No+Image';
+                            console.error("ERROR (BookingsView): No s'ha pogut carregar la imatge del cotxe:", e.currentTarget.src, e);
+                            (e.target as HTMLImageElement).src = 'https://placehold.co/150x100/E0E0E0/333333?text=No+Image'; // Imatge de fallback en cas d'error.
                           }}
                         />
                       ) : (
                         <div className="w-full h-[180px] flex items-center justify-center bg-gray-100 rounded-lg">
-                          <p className="text-gray-500 text-sm">Car Not Found</p>
+                          <p className="text-gray-500 text-sm">Cotxe No Trobat</p>
                         </div>
                       )}
                     </div>
 
-                    {/* Booking and Car Details Section (1/3) */}
+                    {/* Secció de Detalls de la Reserva i el Cotxe (1/3) */}
                     <div className="flex-1 w-full sm:w-1/3 p-2 border-b sm:border-b-0 sm:border-r border-gray-200">
-                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Booking Details</h3>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Detalls de la Reserva</h3>
                       <p className="text-gray-700">
-                        <span className="font-medium">User:</span> {booking.userId || 'N/A'}
+                        <span className="font-medium">Usuari:</span> {booking.userId || 'N/A'}
                       </p>
                       {car ? (
                         <>
                           <p className="text-gray-700">
-                            <span className="font-medium">Car:</span> {car.make || 'N/A'} {car.model || 'N/A'} ({car.year || 'N/A'}) - {car.color || 'N/A'}
+                            <span className="font-medium">Cotxe:</span> {car.make || 'N/A'} {car.model || 'N/A'} ({car.year || 'N/A'}) - {car.color || 'N/A'}
                           </p>
                           <p className="text-gray-700 text-sm">
-                            <span className="font-medium">Booking Date:</span> {booking.bookingDate || 'N/A'}
+                            <span className="font-medium">Data de Reserva:</span> {booking.bookingDate || 'N/A'}
                           </p>
                           <p className="text-gray-700">
-                            <span className="font-medium">Dates:</span> {booking.startDate || 'N/A'} to {booking.endDate || 'N/A'}
+                            <span className="font-medium">Dates:</span> {booking.startDate || 'N/A'} a {booking.endDate || 'N/A'}
                           </p>
                           <p className="text-gray-700">
-                            <span className="font-medium">Price per day:</span>{' '}
+                            <span className="font-medium">Preu per dia:</span>{' '}
                             <strong>
-                              {/* **MODIFICACIÓN CLAVE**: Usa solo `isCurrentCarVintage` para determinar el símbolo */}
-                              {isCurrentCarVintage 
-                                ? `${car.price?.toFixed(2) || 'N/A'} Pts` // Muestra el valor original con "Pts"
+                              {/* **MODIFICACIÓ CLAU**: Usa només `isCurrentCarVintage` per determinar el símbol de la moneda. */}
+                              {isCurrentCarVintage
+                                ? `${car.price?.toFixed(2) || 'N/A'} Pts` // Mostra el valor original amb "Pts".
                                 : `${car.price?.toFixed(2) || 'N/A'} €`}
                             </strong>
                           </p>
                           <p className="text-gray-700">
-                            <span className="font-medium">Number of days booked:</span> {duration > 0 ? duration : 'N/A'}
+                            <span className="font-medium">Nombre de dies reservats:</span> {duration > 0 ? duration : 'N/A'}
                           </p>
                           <p className="text-lg font-bold text-gray-900 mt-2">
-                            <span className="text-purple-700">Total Price:</span> {totalPrice}
+                            <span className="text-purple-700">Preu Total:</span> {totalPrice}
                           </p>
                         </>
                       ) : (
-                        <p className="text-gray-700"><span className="font-medium">Car:</span> Details Not Available</p>
+                        <p className="text-gray-700"><span className="font-medium">Cotxe:</span> Detalls No Disponibles</p>
                       )}
                       <p className="text-gray-700 text-sm">
-                        <span className="text-blue-600">Booking ID:</span> {booking.bookingId || 'N/A'}
+                        <span className="text-blue-600">ID de Reserva:</span> {booking.bookingId || 'N/A'}
                       </p>
                     </div>
 
-                    {/* Delegation Details Section (1/3) */}
+                    {/* Secció de Detalls de la Delegació (1/3) */}
                     <div className="flex-1 w-full sm:w-1/3 p-2">
-                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Delegation Details</h3>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Detalls de la Delegació</h3>
                       {delegation ? (
                         <>
                           <p className="text-gray-700">
-                            <span className="font-medium">Delegation:</span> {delegation.name || 'N/A'} ({delegation.city || 'N/A'})
+                            <span className="font-medium">Delegació:</span> {delegation.name || 'N/A'} ({delegation.city || 'N/A'})
                           </p>
                           <p className="text-gray-700">
-                            <span className="font-medium">Address:</span> {delegation.adress || 'N/A'}
+                            <span className="font-medium">Adreça:</span> {delegation.adress || 'N/A'}
                           </p>
                           <p className="text-gray-700">
-                            <span className="font-medium">Manager:</span> {delegation.manager || 'N/A'}
+                            <span className="font-medium">Gestor:</span> {delegation.manager || 'N/A'}
                           </p>
                           <p className="text-gray-700">
-                            <span className="font-medium">Phone:</span> {delegation.telf || 'N/A'}
+                            <span className="font-medium">Telèfon:</span> {delegation.telf || 'N/A'}
                           </p>
                         </>
                       ) : (
-                        <p className="text-gray-700"><span className="font-medium">Delegation:</span> Details Not Available</p>
+                        <p className="text-gray-700"><span className="font-medium">Delegació:</span> Detalls No Disponibles</p>
                       )}
                     </div>
                   </div>
-                  {/* Buttons below the three sections */}
+                  {/* Botons sota les tres seccions */}
                   <div className="flex gap-2 mt-4 justify-center sm:justify-start w-full print-buttons">
+                    {/* Botó per eliminar la reserva. */}
                     <Button theme="error small" onClick={() => handleDeleteBooking(booking)}>
-                      Delete
+                      Eliminar
                     </Button>
+                    {/* Botó per modificar la reserva (funcionalitat no implementada). */}
                     <Button theme="tertiary small" onClick={() => handleModifyBooking(booking)}>
-                      Modify
+                      Modificar
                     </Button>
-                    {/* Botón para DESCARGAR PDF */}
+                    {/* Botó per DESCARREGAR PDF. */}
                     <Button theme="contrast small" onClick={() => handleDownloadPdf(booking)}>
-                      Download PDF
+                      Descarregar PDF
                     </Button>
                   </div>
                 </li>
