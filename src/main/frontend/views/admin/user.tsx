@@ -29,18 +29,10 @@ export default function UsersView() {
 
   return (
     <div className="flex flex-col h-full items-center justify-center p-l text-center box-border">
-      <img style={{ width: '200px' }} src="images/empty-plant.png" />
-      <h2>User Management</h2>
+      
+      <h2>Proximamente</h2>
 
-      <div className="card p-m">
-        <pre className="text-left">
-          {JSON.stringify(sampleUser, null, 2)}
-        </pre>
-        <Button onClick={handleSaveUser}>
-          Save User
-        </Button>
-      </div>
-
+   
       <p>Manage user accounts and profiles</p>
     </div>
   );
