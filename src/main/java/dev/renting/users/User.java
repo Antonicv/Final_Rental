@@ -6,16 +6,24 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSortKey;
 
+/**
+ * Classe que representa un usuari al sistema.
+ * Utilitza anotacions per mapejar a una taula DynamoDB.
+ */
 @DynamoDbBean
 public class User {
-    private String userId;
-    private String operation;
-    private String username;
-    private String email;
-    private String fullName;
-    private String phone;
+    private String userId;      // Identificador únic de l'usuari
+    private String operation;   // Operació associada amb l'usuari
+    private String username;    // Nom d'usuari
+    private String email;       // Correu electrònic
+    private String fullName;    // Nom complet
+    private String phone;       // Telèfon
 
-    // Getters and setters
+    // Getters i setters
+    /**
+     * Obté l'identificador de l'usuari.
+     * Serveix com a clau de partició.
+     */
     @DynamoDbPartitionKey
     public String getUserId() {
         return userId;
@@ -24,6 +32,11 @@ public class User {
     public void setUserId(String userId) {
         this.userId = userId;
     }
+    
+    /**
+     * Obté l'operació.
+     * Serveix com a clau de classificació.
+     */
     @DynamoDbSortKey
     public String getOperation() {
         return operation;
@@ -32,7 +45,6 @@ public class User {
     public void setOperation(String operation) {
         this.operation = operation;
     }
-
 
     @DynamoDbAttribute("userName")
     public String getUsername() { return username; }

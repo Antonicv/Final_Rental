@@ -1,4 +1,4 @@
-// UserRepositoryImpl.java
+// Implementació del repositori d'usuaris que utilitza DynamoDB per emmagatzemar i recuperar dades d'usuari
 package dev.renting.users;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,15 +16,18 @@ import java.util.List;
 @Repository
 public class UserRepositoryImpl implements UserRepository {
 
+    // Client millorat de DynamoDB per interactuar amb la base de dades
     private final DynamoDbEnhancedClient enhancedClient;
+    // Nom de la taula a DynamoDB on s'emmagatzemen els usuaris
     private final String tableName = "Users";
 
+    // Constructor que injecta el client DynamoDB millorat
     @Autowired
     public UserRepositoryImpl(DynamoDbEnhancedClient enhancedClient) {
         this.enhancedClient = enhancedClient;
     }
 
-
+    // Mètode genèric per desar qualsevol tipus d'ítem a la taula
     @Override
     public <T> void save(T item) {
         DynamoDbTable<T> table =
@@ -34,20 +37,18 @@ public class UserRepositoryImpl implements UserRepository {
         table.putItem(item);
     }
 
+    // Cerca totes les reserves d'un usuari utilitzant el seu ID
     @Override
     public List<Booking> findBookingsByUserId(String userId) {
-        // This client creates a reference to our DynamoDB table
-        // telling the SDK to map table items to our Booking Java class
-        // it uses the value of enhancedClient
+        // Aquest client crea una referència a la nostra taula DynamoDB
+        // indicant a l'SDK que mapegi els elements de la taula a la nostra classe Booking
         DynamoDbTable<Booking> table = enhancedClient.table(tableName, TableSchema.fromBean(Booking.class));
 
-        // Assuming ''Booking'' has a partition key named "userId"
-        // empty list where we will collect all the bookings found for the user.
+        // Suposant que 'Booking' té una clau de partició anomenada "userId"
+        // Llista buida on recollirem totes les reserves trobades per a l'usuari
         List<Booking> bookings = new ArrayList<>();
 
-        // Query for items where the partition key equals userId and the sort key begins with "booking"
-        // QueryConditional.keyEqualTo(...): Tells DynamoDB to return all items
-        // where the partition key (here, userId) equals the value you provided.
+        // Consulta per elements on la clau de partició sigui igual a userId i la clau d'ordenació comenci amb "booking"
         Iterator<Booking> results = table.query(
                 r -> r.queryConditional(
                         QueryConditional.sortBeginsWith(
@@ -58,43 +59,42 @@ public class UserRepositoryImpl implements UserRepository {
                         )
                 )
         ).items().iterator();
-        // .items().iterator(): Gets an iterator over the query results.
-        // Each item is mapped to a Booking object.
+        // Obtenim un iterador sobre els resultats de la consulta
+        // Cada element es mapeja a un objecte Booking
 
-        // Loop over the query results and add them to the 'bookings' list
-        // with the method reference: bookings::add
+        // Recorrem els resultats de la consulta i els afegim a la llista 'bookings'
         results.forEachRemaining(bookings::add);
         return bookings;
     }
+
+    // Troba un usuari per ID i tipus d'operació
     @Override
-public User findById(String userId, String operation) {
-    DynamoDbTable<User> table = enhancedClient.table(tableName, TableSchema.fromBean(User.class));
-    Key key = Key.builder()
-            .partitionValue(userId)
-            .sortValue(operation)
-            .build();
-    return table.getItem(key);
-}
+    public User findById(String userId, String operation) {
+        DynamoDbTable<User> table = enhancedClient.table(tableName, TableSchema.fromBean(User.class));
+        Key key = Key.builder()
+                .partitionValue(userId)
+                .sortValue(operation)
+                .build();
+        return table.getItem(key);
+    }
 
-@Override
-public void deleteById(String userId, String operation) {
-    DynamoDbTable<User> table = enhancedClient.table(tableName, TableSchema.fromBean(User.class));
-    Key key = Key.builder()
-            .partitionValue(userId)
-            .sortValue(operation)
-            .build();
-    table.deleteItem(key);
-}
+    // Elimina un usuari utilitzant el seu ID i tipus d'operació
+    @Override
+    public void deleteById(String userId, String operation) {
+        DynamoDbTable<User> table = enhancedClient.table(tableName, TableSchema.fromBean(User.class));
+        Key key = Key.builder()
+                .partitionValue(userId)
+                .sortValue(operation)
+                .build();
+        table.deleteItem(key);
+    }
 
-@Override
-public List<User> findAllUsers() {
-    DynamoDbTable<User> table = enhancedClient.table(tableName, TableSchema.fromBean(User.class));
-    List<User> users = new ArrayList<>();
-    table.scan().items().forEach(users::add);
-    return users;
-}
-
-
-
-
+    // Recupera tots els usuaris de la taula
+    @Override
+    public List<User> findAllUsers() {
+        DynamoDbTable<User> table = enhancedClient.table(tableName, TableSchema.fromBean(User.class));
+        List<User> users = new ArrayList<>();
+        table.scan().items().forEach(users::add);
+        return users;
+    }
 }
