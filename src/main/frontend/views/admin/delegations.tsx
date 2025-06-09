@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { DelegationEndpoint } from 'Frontend/generated/endpoints';
 import { TextField } from '@vaadin/react-components/TextField';
 import { Button } from '@vaadin/react-components/Button';
-import { Checkbox } from '@vaadin/react-components/Checkbox';
+
 import { Dialog } from '@vaadin/react-components/Dialog';
 
 export const config: ViewConfig = {
