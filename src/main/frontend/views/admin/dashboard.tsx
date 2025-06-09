@@ -15,7 +15,7 @@ interface Booking {
 
 interface User {
   userId: string;
-  // otros campos si tienes
+  name?: string;
 }
 
 interface Car {
@@ -26,8 +26,10 @@ interface Car {
   year: number;
   color: string;
   rented: boolean;
-  price: number;
+  price: number; // Precio diario en euros
 }
+
+const IVA_RATE = 0.21;
 
 const Dashboard: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -36,21 +38,18 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Estados para filtros
+  // Filtros para búsqueda de coches
   const [carSearchTerm, setCarSearchTerm] = useState("");
   const [carAvailabilityFilter, setCarAvailabilityFilter] = useState<
     "all" | "available" | "rented"
   >("all");
 
-  // Type guard para validar los coches
-  function isCarWithMakeAndModel(car: any): car is Car {
-    return (
-      typeof car?.make === "string" &&
-      typeof car?.model === "string" &&
-      typeof car?.year === "number" &&
-      typeof car?.delegationId === "string"
-    );
-  }
+  const calculateDays = (start: string, end: string) => {
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    const diffTime = endDate.getTime() - startDate.getTime();
+    return Math.max(Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1, 1);
+  };
 
   useEffect(() => {
     async function fetchData() {
@@ -62,35 +61,43 @@ const Dashboard: React.FC = () => {
           getAllCars(),
         ]);
 
-        const bookingsData = (bookingsDataRaw ?? []).filter(
-          (b): b is Booking => b !== undefined
-        );
-        const usersData = (usersDataRaw ?? []).filter(
-          (u): u is User => u !== undefined
-        );
-        const carsData = (carsDataRaw ?? []).filter(
-          (c): c is Car => c !== undefined
-        );
-
-        setBookings(bookingsData);
-        setUsers(usersData);
-        setCars(carsData);
+        setBookings((bookingsDataRaw ?? []).filter((b): b is Booking => b !== undefined));
+        setUsers((usersDataRaw ?? []).filter((u): u is User => u !== undefined));
+        setCars((carsDataRaw ?? []).filter((c): c is Car => c !== undefined));
       } catch (err: any) {
         setError(err.message || "Error inesperado");
       } finally {
         setLoading(false);
       }
     }
-
     fetchData();
   }, []);
 
   if (loading) return <p>Cargando datos del dashboard...</p>;
   if (error) return <p>Error: {error}</p>;
 
-  const validCars = cars.filter(isCarWithMakeAndModel);
+  // Valid cars filter
+  const validCars = cars.filter(
+    (car) =>
+      typeof car.make === "string" &&
+      typeof car.model === "string" &&
+      typeof car.year === "number" &&
+      typeof car.delegationId === "string" &&
+      typeof car.price === "number"
+  );
 
-  // Filtrado según búsqueda y estado
+  // Función para formatear precio según año
+  const formatPrice = (car: Car) => {
+    if (car.year < 2000) {
+      // Conversión euros -> pesetas
+      const pricePts = car.price * 166.386;
+      return `${pricePts.toFixed(0)} Pts`;
+    } else {
+      return `${car.price.toFixed(2)} €`;
+    }
+  };
+
+  // Filtrar coches según búsqueda y estado
   const filteredCars = validCars.filter((car) => {
     const matchesSearch =
       car.make.toLowerCase().includes(carSearchTerm.toLowerCase()) ||
@@ -104,63 +111,88 @@ const Dashboard: React.FC = () => {
     return matchesSearch && matchesAvailability;
   });
 
-  // ---------- NUEVAS ESTADÍSTICAS ----------
+  // Estadísticas por delegación
+  interface DelegationStats {
+    delegationId: string;
+    totalReservations: number;
+    totalIncome: number;
+    totalCars: number;
+    rentedCars: number;
+    availableCars: number;
+  }
 
-  // Vehículos por delegación
-  const carsByDelegation = validCars.reduce((acc, car) => {
-    acc[car.delegationId] = (acc[car.delegationId] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  // Obtener delegaciones únicas
+  const delegations = Array.from(new Set(cars.map((c) => c.delegationId)));
 
-  // Fecha hoy para comparar reservas activas
-  const today = new Date();
+  const delegationStats: DelegationStats[] = delegations.map((delegId) => {
+    const carsInDelegation = cars.filter((c) => c.delegationId === delegId);
+    const totalCars = carsInDelegation.length;
+    const rentedCars = carsInDelegation.filter((c) => c.rented).length;
+    const availableCars = totalCars - rentedCars;
 
-  // Reservas activas hoy (startDate <= today <= endDate)
-  const activeBookings = bookings.filter((b) => {
-    const start = new Date(b.startDate);
-    const end = new Date(b.endDate);
-    return start <= today && today <= end;
+    // Reservas en esta delegación (buscamos coche con carId igual a delegationId en booking)
+    const bookingsInDelegation = bookings.filter((b) => {
+      const car = cars.find((c) => c.delegationId === b.carId);
+      return car?.delegationId === delegId;
+    });
+
+    const totalReservations = bookingsInDelegation.length;
+
+    const totalIncome = bookingsInDelegation.reduce((acc, booking) => {
+      const car = cars.find((c) => c.delegationId === booking.carId);
+      if (!car) return acc;
+      const days = calculateDays(booking.startDate, booking.endDate);
+      const priceWithoutIVA = car.price * days;
+      const priceWithIVA = priceWithoutIVA * (1 + IVA_RATE);
+      return acc + priceWithIVA;
+    }, 0);
+
+    return {
+      delegationId: delegId,
+      totalReservations,
+      totalIncome,
+      totalCars,
+      rentedCars,
+      availableCars,
+    };
   });
 
-  // Duración promedio de reserva (en días)
-  const avgBookingDuration =
-    bookings.length === 0
-      ? 0
-      : bookings.reduce((sum, b) => {
-          const start = new Date(b.startDate);
-          const end = new Date(b.endDate);
-          const diffDays = (end.getTime() - start.getTime()) / (1000 * 3600 * 24);
-          return sum + diffDays;
-        }, 0) / bookings.length;
+  // Delegación con más ingresos
+  const topDelegation = delegationStats.reduce((prev, current) =>
+    current.totalIncome > prev.totalIncome ? current : prev,
+    delegationStats[0]
+  );
 
-  // Usuarios con reservas activas (únicos)
-  const activeUsersSet = new Set(activeBookings.map((b) => b.userId));
-  const activeUsersCount = activeUsersSet.size;
+  // Función para descargar CSV
+  const downloadCSV = (header: string[], rows: (string | number)[][], filename: string) => {
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [header, ...rows].map((e) => e.join(",")).join("\n");
 
-  // Usuarios frecuentes (top 5 por número de reservas)
-  const bookingCountByUser = bookings.reduce((acc, b) => {
-    acc[b.userId] = (acc[b.userId] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
-  const topUsers = Object.entries(bookingCountByUser)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5);
-
-  // Ingreso total estimado por reservas activas (sumar precio coches de reservas activas)
-  // Map de coches por ID para acceso rápido
-  const carById = new Map(validCars.map((car) => [car.delegationId, car]));
-  // Nota: no tengo carId key explícito en Car, supongo delegationId == carId?
-  // Si no es así, ajusta esto:
-  const carByCarId = new Map(validCars.map((car) => [car.delegationId, car]));
-
-  // Suma precios de coches alquilados en reservas activas
-  const totalIncomeActiveBookings = activeBookings.reduce((sum, booking) => {
-    const car = carByCarId.get(booking.carId);
-    return sum + (car ? car.price : 0);
-  }, 0);
-
-  // -----------------------------------------
+  // Para descargar CSV de coches filtrados
+  const downloadCarsCSV = () => {
+    const header = ["Delegación", "Operación", "Marca", "Modelo", "Año", "Color", "Estado", "Precio Diario"];
+    const rows = filteredCars.map((car) => [
+      car.delegationId,
+      car.operation,
+      car.make,
+      car.model,
+      car.year,
+      car.color,
+      car.rented ? "Alquilado" : "Disponible",
+      car.year < 2000 ? `${(car.price * 166.386).toFixed(0)} Pts` : `${car.price.toFixed(2)} €`,
+    ]);
+    downloadCSV(header, rows, "vehiculos_filtrados.csv");
+  };
 
   return (
     <div style={{ padding: "1rem" }}>
@@ -183,54 +215,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Estadísticas nuevas */}
-      <div style={{ marginBottom: "2rem" }}>
-        <h3>Estadísticas adicionales</h3>
-
-        <p>
-          <strong>Vehículos por delegación:</strong>
-        </p>
-        <ul>
-          {Object.entries(carsByDelegation).map(([delegation, count]) => (
-            <li key={delegation}>
-              {delegation}: {count}
-            </li>
-          ))}
-        </ul>
-
-        <p>
-          <strong>Reservas activas hoy:</strong> {activeBookings.length}
-        </p>
-
-        <p>
-          <strong>Duración promedio de reserva:</strong>{" "}
-          {avgBookingDuration.toFixed(1)} días
-        </p>
-
-        <p>
-          <strong>Usuarios con reservas activas:</strong> {activeUsersCount}
-        </p>
-
-        <p>
-          <strong>Usuarios frecuentes (top 5):</strong>
-        </p>
-        <ol>
-          {topUsers.map(([userId, count]) => (
-            <li key={userId}>
-              Usuario {userId}: {count} reservas
-            </li>
-          ))}
-        </ol>
-
-        <p>
-          <strong>Ingreso total estimado por reservas activas:</strong>{" "}
-          {totalIncomeActiveBookings.toFixed(2)} €
-        </p>
-      </div>
-
-      <h3>Lista de vehículos</h3>
-
-      {/* Filtros para vehículos */}
+      {/* Filtros vehículos */}
       <div style={{ marginBottom: "1rem" }}>
         <input
           type="text"
@@ -249,9 +234,13 @@ const Dashboard: React.FC = () => {
           <option value="available">Disponibles</option>
           <option value="rented">Alquilados</option>
         </select>
+        <button onClick={downloadCarsCSV} style={{ marginLeft: "1rem" }}>
+          Descargar coches filtrados CSV
+        </button>
       </div>
 
-      <table border={1} cellPadding={5}>
+      <h3>Lista de vehículos</h3>
+      <table border={1} cellPadding={5} style={{ marginBottom: "2rem", width: "100%" }}>
         <thead>
           <tr>
             <th>Delegación</th>
@@ -261,12 +250,12 @@ const Dashboard: React.FC = () => {
             <th>Año</th>
             <th>Color</th>
             <th>Estado</th>
-            <th>Precio</th>
+            <th>Precio Diario</th>
           </tr>
         </thead>
         <tbody>
-          {filteredCars.map((car, index) => (
-            <tr key={index}>
+          {filteredCars.map((car, idx) => (
+            <tr key={idx}>
               <td>{car.delegationId}</td>
               <td>{car.operation}</td>
               <td>{car.make}</td>
@@ -274,38 +263,61 @@ const Dashboard: React.FC = () => {
               <td>{car.year}</td>
               <td>{car.color}</td>
               <td>{car.rented ? "Alquilado" : "Disponible"}</td>
-              <td>{car.price.toFixed(2)} €</td>
+              <td>{formatPrice(car)}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      <h3>Últimas reservas</h3>
-      <table border={1} cellPadding={5}>
+      <h2>Estadísticas por Delegación</h2>
+      <p>
+        Delegación que más ingresos genera: <b>{topDelegation.delegationId}</b> con{" "}
+        <b>{topDelegation.totalIncome.toFixed(2)} €</b>
+      </p>
+
+      <table border={1} cellPadding={5} style={{ marginBottom: "1rem", width: "100%" }}>
         <thead>
           <tr>
-            <th>Booking ID</th>
-            <th>Car ID</th>
-            <th>Usuario ID</th>
-            <th>Fecha inicio</th>
-            <th>Fecha fin</th>
+            <th>Delegación</th>
+            <th>Total Reservas</th>
+            <th>Ingresos totales (€)</th>
+            <th>Total Coches</th>
+            <th>Coches Alquilados</th>
+            <th>Coches Disponibles</th>
           </tr>
         </thead>
         <tbody>
-          {bookings
-            .slice(-10)
-            .reverse()
-            .map((b) => (
-              <tr key={b.bookingId}>
-                <td>{b.bookingId}</td>
-                <td>{b.carId}</td>
-                <td>{b.userId}</td>
-                <td>{b.startDate}</td>
-                <td>{b.endDate}</td>
-              </tr>
-            ))}
+          {delegationStats.map((d) => (
+            <tr key={d.delegationId}>
+              <td>{d.delegationId}</td>
+              <td style={{ textAlign: "center" }}>{d.totalReservations}</td>
+              <td style={{ textAlign: "right" }}>{d.totalIncome.toFixed(2)}</td>
+              <td style={{ textAlign: "center" }}>{d.totalCars}</td>
+              <td style={{ textAlign: "center" }}>{d.rentedCars}</td>
+              <td style={{ textAlign: "center" }}>{d.availableCars}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
+
+      <button
+        onClick={() =>
+          downloadCSV(
+            ["Delegación", "Total Reservas", "Ingresos totales (€)", "Total Coches", "Coches Alquilados", "Coches Disponibles"],
+            delegationStats.map((d) => [
+              d.delegationId,
+              d.totalReservations,
+              d.totalIncome.toFixed(2),
+              d.totalCars,
+              d.rentedCars,
+              d.availableCars,
+            ]),
+            "estadisticas_delegaciones.csv"
+          )
+        }
+      >
+        Descargar estadísticas por delegación CSV
+      </button>
     </div>
   );
 };
