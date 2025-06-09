@@ -67,7 +67,7 @@ export default function MainLayout() { // Este componente será renombrado a @la
     { to: '/admin/cars', title: 'Gestión de Coches', icon: 'line-awesome/svg/car-side-solid.svg' },
     { to: '/admin/bookings', title: 'Gestión de Reservas', icon: 'line-awesome/svg/book-solid.svg' },
     { to: '/admin/delegations', title: 'Gestión de Delegaciones', icon: 'line-awesome/svg/building-solid.svg' },
-    { to: '/admin/users', title: 'Gestión de Usuarios', icon: 'line-awesome/svg/user-cog-solid.svg' }, // Icono más apropiado para gestión de usuarios
+    //{ to: '/admin/users', title: 'Gestión de Usuarios', icon: 'line-awesome/svg/user-cog-solid.svg' }, // Icono más apropiado para gestión de usuarios
   ];
 
   return (
